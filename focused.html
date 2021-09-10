@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>focused</title>
+
+  <script src="./gojs/samples/assets/require.js"></script>
+
+  <script>
+    function init() {
+      require(["focused"], function(app) {
+        app.init();
+      });
+    }
+  </script>
+</head>
+<body onload="init()">
+<div id="sample">
+  <div id="myDiagramDiv" style="border: solid 1px black; width:1800px; height:1000px"></div>
+</div>
+</body>
+</html>
