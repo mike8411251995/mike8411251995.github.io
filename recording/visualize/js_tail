@@ -1,0 +1,9 @@
+        ]);
+    }
+
+    function convertKeyImage(img) {
+        return "imgs/" + img + ".png";
+    }
+
+    exports.init = init;
+});
