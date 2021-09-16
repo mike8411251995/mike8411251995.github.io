@@ -83,6 +83,7 @@
             {
                 mouseDrop: function(e, node) { mergeNode(e, node); }
             },
+            $(go.Shape, "Rectangle", { fill: "lightgray" }),
             $(go.Picture,
                 new go.Binding("desiredSize", "size", convertSize),
                 new go.Binding("source", "img", convertKeyImage)
@@ -91,12 +92,7 @@
 
         myDiagram.groupTemplate = $(go.Group, "Auto",
             {
-                layout: $(go.LayeredDigraphLayout,
-                {
-                    direction: 90,
-                    columnSpacing: 10,
-                    layerSpacing: 50
-                }),
+                layout: $(go.ForceDirectedLayout),
                 ungroupable: true, 
                 // highlight when dragging into the Group
                 mouseDragEnter: function(e, grp, prev) { highlightGroup(e, grp, true); },
