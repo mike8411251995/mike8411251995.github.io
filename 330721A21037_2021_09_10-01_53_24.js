@@ -15,6 +15,7 @@
     function init() {
         var $ = go.GraphObject.make;
         var myDiagram = $(go.Diagram, 'myDiagramDiv', {
+            layout: $(go.ForceDirectedLayout),
             mouseDrop: function(e) { finishDrop(e, null); },
             "undoManager.isEnabled": true,
         });
