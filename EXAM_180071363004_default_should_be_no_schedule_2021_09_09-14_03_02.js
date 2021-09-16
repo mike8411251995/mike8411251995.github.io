@@ -66,6 +66,11 @@
             myDiagram.remove(node);
         }
 
+        function mergeGroup(selectedGroup, newGroup) {
+            newGroup.addMembers(selectedGroup.memberParts, true);
+            myDiagram.remove(selectedGroup)
+        }
+
         function defaultColor(horiz) {  // a Binding conversion function
             return horiz ? "#FFDD33" : "#33D3E5";
         }
@@ -99,7 +104,14 @@
                 computesBoundsAfterDrag: true,
                 // when the selection is dropped into a Group, add the selected Parts into that Group;
                 // if it fails, cancel the tool, rolling back any changes
-                mouseDrop: finishDrop,
+                mouseDrop: function(e, grp) {
+                    var selectedGroup = e.diagram.selection.first();
+                    if (selectedGroup instanceof go.Group) {
+                        mergeGroup(selectedGroup, grp);
+                    } else if (selectedGroup instanceof go.Node) {
+                        finishDrop(e, grp);
+                    };
+                },
                 handlesDragDropForMembers: true,  // don't need to define handlers on member Nodes and Links
                 // Groups containing Groups lay out their members horizontally
             },
