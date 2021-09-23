@@ -83,8 +83,16 @@
 
         myDiagram.nodeTemplate = $(go.Node, 'Auto',
             {
-                mouseDrop: function(e, node) { mergeNode(e, node); }
+                mouseDrop: function(e, node) { mergeNode(e, node); },
+                toolTip:
+                $("ToolTip",
+                    $(go.Panel, "Vertical",
+                    $(go.Picture, { margin: 3, width: 768, height: 432 },
+                        new go.Binding("source", "img", convertKeyFullImage)),
+                    )
+                )  // end Adornment
             },
+            new go.Binding("click", "img", convertURL),
             $(go.Shape, "Rectangle", { fill: "lightgray" }),
             $(go.Picture,
                 new go.Binding("desiredSize", "size", convertSize),
@@ -152,7 +160,7 @@
                 toolTip:
                 $("ToolTip",
                     $(go.Panel, "Vertical",
-                    $(go.Picture, { margin: 3, width: 576, height: 324 },
+                    $(go.Picture, { margin: 3, width: 768, height: 432 },
                         new go.Binding("source", "img", convertKeyFullImage)),
                     )
                 )  // end Adornment
