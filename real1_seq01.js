@@ -4,14 +4,14 @@
         if (v !== undefined) module.exports = v;
     }
     else if (typeof define === "function" && define.amd) {
-        define(["require", "exports", "./gojs/release/go.js"], factory);
+        define(["require", "exports", "https://unpkg.com/gojs/release/go.js"], factory);
     }
 })(function (require, exports) {
     'use strict';
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.init = void 0;
 
-    var go = require("./gojs/release/go.js");
+    var go = require("https://unpkg.com/gojs/release/go.js");
     function init() {
         var $ = go.GraphObject.make;
         var myDiagram = $(go.Diagram, 'myDiagramDiv', {
