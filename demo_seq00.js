@@ -212,11 +212,11 @@
         );
             
         myDiagram.model = new go.GraphLinksModel([
-            { key: "CPOE首頁-00_node00", img: "CPOE首頁-00_node00", group: "CPOE首頁-00", size: "192,108" },
-            { key: "CPOE首頁-00_node01", img: "CPOE首頁-00_node01", group: "CPOE首頁-00", size: "192,108" },
-            { key: "CPOE首頁-00_node02", img: "CPOE首頁-00_node02", group: "CPOE首頁-00", size: "192,108" },
-            { key: "CPOE首頁-00", isGroup: true, level: 1, group: "CPOE首頁" },
-            { key: "CPOE首頁", isGroup: true, level: 0 },
+            { key: "CPOE首頁-00_node00", img: "CPOE首頁-00_node00", group: "就診明細-00", size: "192,108" },
+            { key: "CPOE首頁-00_node01", img: "CPOE首頁-00_node01", group: "就診明細-00", size: "192,108" },
+            { key: "CPOE首頁-00_node02", img: "CPOE首頁-00_node02", group: "就診明細-00", size: "192,108" },
+            { key: "就診明細-00", isGroup: true, level: 1, group: "就診明細" },
+            { key: "就診明細", isGroup: true, level: 0 },
             { key: "醫囑選擇-00_node00", img: "醫囑選擇-00_node00", group: "醫囑選擇-00", size: "192,108" },
             { key: "醫囑選擇-00_node01", img: "醫囑選擇-00_node01", group: "醫囑選擇-00", size: "192,108" },
             { key: "醫囑選擇-00_node02", img: "醫囑選擇-00_node02", group: "醫囑選擇-00", size: "192,108" },
