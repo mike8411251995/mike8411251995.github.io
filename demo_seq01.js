@@ -212,22 +212,25 @@
         );
             
         myDiagram.model = new go.GraphLinksModel([
-            { key: "CPOE首頁-00_node00", img: "CPOE首頁-00_node00", group: "CPOE首頁-00", size: "192,108" },
-            { key: "CPOE首頁-00_node01", img: "CPOE首頁-00_node01", group: "CPOE首頁-00", size: "192,108" },
             { key: "CPOE首頁-00_node02", img: "CPOE首頁-00_node02", group: "CPOE首頁-00", size: "192,108" },
+            { key: "CPOE首頁-00_node03", img: "CPOE首頁-00_node03", group: "CPOE首頁-00", size: "192,108" },
+            { key: "CPOE首頁-00_node04", img: "CPOE首頁-00_node04", group: "CPOE首頁-00", size: "192,108" },
+            { key: "CPOE首頁-00_node05", img: "CPOE首頁-00_node05", group: "CPOE首頁-00", size: "192,108" },
             { key: "CPOE首頁-00", isGroup: true, level: 1, group: "CPOE首頁" },
             { key: "CPOE首頁", isGroup: true, level: 0 },
-            { key: "醫囑選擇-00_node00", img: "醫囑選擇-00_node00", group: "醫囑選擇-00", size: "192,108" },
-            { key: "醫囑選擇-00_node01", img: "醫囑選擇-00_node01", group: "醫囑選擇-00", size: "192,108" },
-            { key: "醫囑選擇-00_node02", img: "醫囑選擇-00_node02", group: "醫囑選擇-00", size: "192,108" },
-            { key: "醫囑選擇-00", isGroup: true, level: 1, group: "醫囑選擇" },
-            { key: "醫囑選擇", isGroup: true, level: 0 },
+            { key: "申請單-00_node00", img: "申請單-00_node00", group: "申請單-00", size: "192,108" },
+            { key: "申請單-00_node01", img: "申請單-00_node01", group: "申請單-00", size: "192,108" },
+            { key: "申請單-00", isGroup: true, level: 1, group: "申請單" },
+            { key: "申請單-01_node00", img: "申請單-01_node00", group: "申請單-01", size: "184,108" },
+            { key: "申請單-01", isGroup: true, level: 1, group: "申請單" },
+            { key: "申請單", isGroup: true, level: 0 },
         ], [
-            { from: "CPOE首頁-00_node00", to: "CPOE首頁-00_node01", text: null, img: "link00", size: "96,24" },
-            { from: "CPOE首頁-00_node01", to: "醫囑選擇-00_node00", text: null, img: "link01", size: "44,22" },
-            { from: "醫囑選擇-00_node00", to: "醫囑選擇-00_node01", text: null, img: "link02", size: "200,13" },
-            { from: "醫囑選擇-00_node01", to: "醫囑選擇-00_node02", text: "gaslan⏎", img: null, size: null },
-            { from: "醫囑選擇-00_node02", to: "CPOE首頁-00_node02", text: null, img: "link04", size: "73,25" },
+            { from: "CPOE首頁-00_node02", to: "CPOE首頁-00_node03", text: null, img: "link00", size: "23,22" },
+            { from: "CPOE首頁-00_node03", to: "申請單-00_node00", text: null, img: "link01", size: "96,28" },
+            { from: "申請單-00_node00", to: "申請單-01_node00", text: null, img: "link02", size: "44,51" },
+            { from: "申請單-01_node00", to: "申請單-00_node01", text: null, img: "link03", size: "73,25" },
+            { from: "申請單-00_node01", to: "CPOE首頁-00_node04", text: null, img: "link04", size: "73,25" },
+            { from: "CPOE首頁-00_node04", to: "CPOE首頁-00_node05", text: null, img: "link05", size: "78,28" },
         ]);
 
         // initialize the Palette and its contents
@@ -260,12 +263,12 @@
 
     function convertKeyImage(img) {
         if (img == null) return "";
-        else return "imgs/demo_seq00/" + img + ".png";
+        else return "imgs/demo_seq01/" + img + ".png";
     }
 
     function convertKeyFullImage(img) {
         if (img == null) return "";
-        else return "imgs/demo_seq00/" + img + "_full.png";
+        else return "imgs/demo_seq01/" + img + "_full.png";
     }
 
     function convertSize(size) {
@@ -280,7 +283,7 @@
     function convertURL(img) {
         if (img == null) return null;
         else return function() {
-            window.open("imgs/demo_seq00/" + img + "_full.png");
+            window.open("imgs/demo_seq01/" + img + "_full.png");
         }
     }
 
