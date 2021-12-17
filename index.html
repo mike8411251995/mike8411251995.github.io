@@ -1,4 +1,65 @@
-<a href="./20211111_141428_hong_full_seq_all.html">110-11-11: 完成看診流程 (洪醫師)</a>
-<br>
-<a href="./demo_Prod-X_full.html">Demo</a>
-<br>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+<script type="text/javascript" charset="UTF-8" src="data.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
+
+<div id="example"></div>
+
+<script>
+    const data = map;
+
+    const container = document.getElementById('example');
+    const hot = new Handsontable(container, {
+        data,
+        colWidths: [200, 400, 390],
+        colHeaders: ['id', 'seq', 'img'],
+        height: 'auto',
+        rowHeights: 220,
+        columns: [
+            { data: 'id', renderer: 'html' },
+            { data: 'seq', renderer: seqRenderer },
+            { data: 'id', renderer: imgRenderer },
+            // { data: 'comments', renderer: safeHtmlRenderer },
+            // { data: 'cover', renderer: coverRenderer }
+        ],
+        // className: 'htCenter htMiddle',
+        contextMenu: true,
+        rowHeaders: true,
+        manualRowMove: true,
+        licenseKey: 'non-commercial-and-evaluation'
+    });
+
+    function imgRenderer(instance, td, row, col, prop, value, cellProperties) {
+        const stringifiedValue = Handsontable.helper.stringify(value);
+
+        const img = document.createElement('IMG');
+
+        img.src = "imgs/nodes/f" + value + "_node.png";
+        img.style.maxHeight = "216px";
+        img.style.maxWidth = "384px";
+        img.style.height = "auto";
+        img.style.width = "auto";
+        // img.style.width = "384px";
+        // img.style.height = "216px";
+        img.addEventListener('click', function (e) {
+            //here you can do anything you like 
+            window.open("imgs/nodes/f" + stringifiedValue + "_full.png");
+        });
+
+        Handsontable.dom.addEvent(img, 'mousedown', event =>{
+            event.preventDefault(); // prevent selection quirk
+        });
+
+        Handsontable.dom.empty(td);
+        td.appendChild(img);
+    }
+
+    function seqRenderer(instance, td, row, col, prop, value, cellProperties) {
+        // be sure you only allow certain HTML tags to avoid XSS threats
+        // (you should also remove unwanted HTML attributes)
+        td.innerHTML = Handsontable.helper.sanitize(
+            "<a href='" + value + ".html'>" + value + "</a>", {
+            ALLOWED_TAGS: ['em', 'b', 'strong', 'a', 'big'],
+        });
+    }
+
+</script>

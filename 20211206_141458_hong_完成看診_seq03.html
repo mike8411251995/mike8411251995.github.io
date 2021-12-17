@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <title>20211206_141458_hong_完成看診_seq03</title>
+    <script src="https://unpkg.com/gojs/release/go.js"></script>
+    <script type="text/javascript" src="map.js"></script>
+
+    <script id="code">
+        var map_dict = JSON.parse(map);
+        var seq_name = "20211206_141458_hong_完成看診_seq03";
+
+        function init() {
+            var $ = go.GraphObject.make;
+            var layoutSpacing = new go.Size(192, 108);
+            var myDiagram = $(go.Diagram, 'myDiagramDiv', {
+                layout: $(go.ForceDirectedLayout),
+                // layout: $(go.GridLayout, { spacing: layoutSpacing } ),
+                mouseDrop: function(e) { finishDrop(e, null); },
+                "undoManager.isEnabled": true,
+                "toolManager.hoverDelay": 100
+            });
+
+            // Hide tooltip when dragging
+            var draggingTool = myDiagram.toolManager.draggingTool;
+            draggingTool.doActivate = function() {
+                myDiagram.toolManager.hideToolTip();
+                go.DraggingTool.prototype.doActivate.call(draggingTool);
+            }
+
+            // Expand groups with only one immediate children
+            function autoExpand() {
+                myDiagram.nodes.each(function(n) {
+                    if (n instanceof go.Group) {
+                        if (n.data.key == "Unknown") { n.collapseSubGraph(); return; }
+                        if (n.data.level == 0) { n.expandSubGraph(); return; }
+                        var memberCount = 0;
+                        n.memberParts.each(function(m) {
+                            if (m instanceof go.Group || m instanceof go.Node) memberCount += 1;
+                        })
+                        if (memberCount <= 1) n.expandSubGraph();
+                        else n.collapseSubGraph();
+                    }
+                });
+            }
+
+            // this function is used to highlight a Group that the selection may be dropped into
+            function highlightGroup(e, grp, show) {
+                if (!grp) return;
+                e.handled = true;
+                if (show) {
+                    // cannot depend on the grp.diagram.selection in the case of external drag-and-drops;
+                    // instead depend on the DraggingTool.draggedParts or .copiedParts
+                    var tool = grp.diagram.toolManager.draggingTool;
+                    var map = tool.draggedParts || tool.copiedParts;  // this is a Map
+                    // now we can check to see if the Group will accept membership of the dragged Parts
+                    if (grp.canAddMembers(map.toKeySet())) {
+                        grp.isHighlighted = true;
+                        return;
+                    }
+                }
+                grp.isHighlighted = false;
+            }
+
+            // Upon a drop onto a Group, we try to add the selection as members of the Group.
+            // Upon a drop onto the background, or onto a top-level Node, make selection top-level.
+            // If this is OK, we're done; otherwise we cancel the operation to rollback everything.
+            function finishDrop(e, grp) {
+                var ok = (grp !== null
+                    ? grp.addMembers(grp.diagram.selection, true)
+                    : e.diagram.commandHandler.addTopLevelParts(e.diagram.selection, true));
+                if (!ok) e.diagram.currentTool.doCancel();
+            }
+
+            function mergeNode(e, node) {
+                var newnode = e.diagram.selection.first();
+                while (node.findLinksConnected().first()) {
+                    var link = node.findLinksConnected().first()
+                    var fromnode = link.fromNode;
+                    var tonode = link.toNode;
+                    var linkText = link.data.text;
+                    var linkSize = link.data.size;
+                    node.diagram.model.removeLinkData(link.data);
+                    if (fromnode.key === tonode.key) {
+                        node.diagram.model.addLinkData( { from: newnode.key, to: newnode.key, text: linkText, size: linkSize } );
+                    } else if (fromnode.key === node.key) {
+                        node.diagram.model.addLinkData( { from: newnode.key, to: tonode.key, text: linkText, size: linkSize } );
+                    } else if (tonode.key === node.key) {
+                        node.diagram.model.addLinkData( { from: fromnode.key, to: newnode.key, text: linkText, size: linkSize } );
+                    }
+                }
+                myDiagram.remove(node);
+            }
+
+            function mergeGroup(selectedGroup, newGroup) {
+                newGroup.addMembers(selectedGroup.memberParts, true);
+                myDiagram.remove(selectedGroup)
+            }
+
+            myDiagram.nodeTemplate = $(go.Node, 'Auto',
+                {
+                    mouseDrop: function(e, node) { mergeNode(e, node); },
+                    toolTip:
+                    $("ToolTip",
+                        $(go.Panel, "Vertical",
+                        $(go.Picture, { margin: 3, width: 768, height: 432 },
+                            new go.Binding("source", "key", convertNodeFullImage)),
+                        )
+                    )  // end Adornment
+                },
+                new go.Binding("click", "key", convertNodeURL),
+                $(go.Shape, "Rectangle", { fill: null },
+                    new go.Binding("stroke", "tag", convertTagStroke),
+                    new go.Binding("strokeWidth", "tag", convertTagStrokeWidth)
+                ),
+                $(go.Picture,
+                    { width: 192, height: 108, background: null, imageStretch: go.GraphObject.Uniform },
+                    new go.Binding("source", "key", convertNodeImage)
+                )
+            );
+
+            myDiagram.groupTemplate = $(go.Group, "Auto",
+                {
+                    layout: $(go.ForceDirectedLayout),
+                    // layout: $(go.GridLayout, { spacing: layoutSpacing } ),
+                    ungroupable: true, 
+                    // highlight when dragging into the Group
+                    mouseDragEnter: function(e, grp, prev) { highlightGroup(e, grp, true); },
+                    mouseDragLeave: function(e, grp, next) { highlightGroup(e, grp, false); },
+                    computesBoundsAfterDrag: true,
+                    // when the selection is dropped into a Group, add the selected Parts into that Group;
+                    // if it fails, cancel the tool, rolling back any changes
+                    mouseDrop: function(e, grp) {
+                        var selectedGroup = e.diagram.selection.first();
+                        if (selectedGroup instanceof go.Group) {
+                            if (selectedGroup.data.level == grp.data.level) { mergeGroup(selectedGroup, grp); }
+                            else if (selectedGroup.data.level > grp.data.level) { finishDrop(e, grp); }
+                            else { e.diagram.currentTool.doCancel(); }
+                        } else if (selectedGroup instanceof go.Node) {
+                            finishDrop(e, grp);
+                        };
+                    },
+                    handlesDragDropForMembers: true,  // don't need to define handlers on member Nodes and Links
+                    // Groups containing Groups lay out their members horizontally
+                    toolTip:
+                    $("ToolTip",
+                        // new go.Binding("visible", "isSubGraphExpanded", inverter).ofObject(), // TODO: visible only when collapsed
+                        new go.Binding("visible", "level", convertLevelVisible),
+                        $(go.Panel, "Vertical",
+                        $(go.Picture, { margin: 3, width: 768, height: 432 },
+                            new go.Binding("source", "preview", convertNodeFullImage)),
+                        )
+                    )  // end Adornment
+                },
+                new go.Binding("background", "isHighlighted", function(h) {
+                    return h ? "rgba(255,0,0,0.2)" : "transparent";
+                }).ofObject(),
+                $(go.Shape, "Rectangle",
+                    { fill: null, strokeWidth: 2 },
+                    new go.Binding("stroke", "level", convertLevelColor)
+                ),
+                $(go.Panel, "Vertical",  // title above Placeholder
+                    $(go.Panel, "Horizontal",  // button next to TextBlock
+                        { stretch: go.GraphObject.Horizontal },
+                        new go.Binding("background", "level", convertLevelColor),
+                        $("SubGraphExpanderButton",
+                            { alignment: go.Spot.Right, margin: 5 } ),
+                        $(go.TextBlock,
+                            {
+                                alignment: go.Spot.Left,
+                                editable: true,
+                                margin: 5,
+                                font: "bold 16px sans-serif",
+                                opacity: 0.75,  // allow some color to show through
+                                stroke: "#404040"
+                            },
+                            new go.Binding("text", "key").makeTwoWay()
+                        )
+                    ),  // end Horizontal Panel
+                    $(go.Placeholder,
+                        { padding: 5, alignment: go.Spot.TopLeft } )
+                )  // end Vertical Panel
+            );
+            
+            myDiagram.linkTemplate = $(go.Link,
+                {
+                    curve: go.Link.Bezier,
+                    toolTip:
+                    $("ToolTip",
+                        // tooltip visible only when link is click event
+                        new go.Binding("visible", "", convertLinkTooltipVisible),
+                        $(go.Panel, "Vertical",
+                        $(go.Picture, { margin: 3, width: 768, height: 432 },
+                            new go.Binding("source", "", convertLinkFullImage)),
+                        )
+                    )  // end Adornment
+                },
+                new go.Binding("click", "", convertLinkURL),
+                $(go.Shape),
+                $(go.Shape, { toArrow: "Standard" }),
+                $(go.Panel, "Auto",
+                    $(go.Shape, "Rectangle",
+                        { fill: "white", stroke: "lightgray" },
+                        new go.Binding("visible", "text", function(text) { return (text != null); }),
+                    ),
+                    $(go.TextBlock, { margin: 3, opacity: 1., font: "bold 14pt Courier New" },
+                        new go.Binding("text", "text")),
+                    $(go.Picture, { segmentOffset: new go.Point(0, 0) },
+                        { width: 192, height: 35, background: null, imageStretch: go.GraphObject.Uniform },
+                        new go.Binding("source", "", convertLinkImage),
+                    ),
+                )
+            );
+                
+            myDiagram.model = new go.GraphLinksModel([
+                { key: "000350", group: "HIS5_就診明細-00", tag: "start" },
+                { key: "HIS5_就診明細-00", preview: "000350", isGroup: true, level: 1, group: "HIS5_就診明細" },
+                { key: "000351", group: "HIS5_就診明細-19", tag: null },
+                { key: "HIS5_就診明細-19", preview: "000351", isGroup: true, level: 1, group: "HIS5_就診明細" },
+                { key: "HIS5_就診明細", preview: "000350", isGroup: true, level: 0 },
+                { key: "000352", group: "HIS5_病患清單-00", tag: "end" },
+                { key: "HIS5_病患清單-00", preview: "000352", isGroup: true, level: 1, group: "HIS5_病患清單" },
+                { key: "HIS5_病患清單", preview: "000352", isGroup: true, level: 0 },
+        ], [
+                { from: "000350", to: "000351", text: null },
+                { from: "000351", to: "000352", text: null },
+            ]);
+
+            // // initialize the Palette and its contents
+            // var myPalette = $(go.Palette, "myPaletteDiv",
+            //     {
+            //         nodeTemplateMap: myDiagram.nodeTemplateMap,
+            //         groupTemplateMap: myDiagram.groupTemplateMap
+            //     }
+            // );
+
+            // myPalette.model = new go.GraphLinksModel([
+            //     { key: "Group", isGroup: true, level: 0 },
+            //     { key: "Subgroup", isGroup: true, level: 1 },
+            // ]);
+
+            autoExpand();
+        }
+
+        function convertLevelVisible(level) {
+            if (level == 1) { return true }
+            else if (level == 0) { return false }
+            else { return false }
+        }
+        
+        function convertLevelColor(level) {
+            if (level == 0) { return "#33D3E5" }
+            else if (level == 1) { return "#FFDD33" }
+            else if (level == 2) { return "#ACE600" }
+            else { return "#000000" }
+        }
+
+        function convertNodeImage(key) {
+            if (key == null) return "";
+            else return "imgs/nodes/f" + key + "_node.png";
+        }
+
+        function convertNodeFullImage(key) {
+            if (key == null) return "";
+            else return "imgs/nodes/f" + key + "_full.png";
+        }
+
+        function convertNodeURL(key) {
+            if (key == null) return null;
+            if (map_dict[key] && seq_name.includes("_all")) return function() {
+                window.open(map_dict[key] + ".html");
+            }
+            else return function() {
+                window.open("imgs/nodes/f" + key + "_full.png");
+            }
+        }
+
+        function convertLinkTooltipVisible(data) {
+            var from = data.from
+            var to = data.to
+            var text = data.text
+            if (from == "Unknown" || to == "Unknown" || text != null) return false;
+            else return true;
+        }
+        
+        function convertLinkImage(data) {
+            var from = data.from
+            var to = data.to
+            var text = data.text
+            if (from == "Unknown" || to == "Unknown" || text != null) return null;
+            else return "imgs/links/f" + from + "-f" + to + "_crop.png";
+        }
+
+        function convertLinkFullImage(data) {
+            var from = data.from
+            var to = data.to
+            var text = data.text
+            if (from == "Unknown" || to == "Unknown" || text != null) return null;
+            else return "imgs/links/f" + from + "-f" + to + "_full.png";
+        }
+
+        function convertLinkURL(data) {
+            var from = data.from
+            var to = data.to
+            var text = data.text
+            if (from == "Unknown" || to == "Unknown" || text != null) return null;
+            else return function() {
+                window.open("imgs/links/f" + from + "-f" + to + "_full.png");
+            }
+        }
+
+        function convertTagStroke(tag) {
+            if (tag == "start") return "green";
+            else if (tag == "end") return "red";
+            else return "black";
+        }
+
+        function convertTagStrokeWidth(tag) {
+            if (tag == "start" || tag == "end") return 6;
+            else return 0;
+        }
+
+        function inverter(x) {
+            return !x;
+        }
+        
+        // Call init on page load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</head>
+
+<body>
+    <div id="sample">
+        <div style="width: 100%; display: flex; justify-content: space-between">
+            <!-- <div id="myPaletteDiv" style="width: 130px; margin-right: 2px; background-color: whitesmoke; border: solid 1px black"></div> -->
+            <div id="myDiagramDiv" style="flex-grow: 1; height: 1000px; border: solid 1px black"></div>
+        </div>
+    </div>
+</body>
+</html>
