@@ -83,7 +83,7 @@
         Handsontable.renderers.cellDecorator.apply(this, arguments);
         const img = document.createElement('IMG');
 
-        img_id = value.split(',')[0]
+        const img_id = value.split(',')[0]
 
         img.src = "imgs/nodes/f" + img_id + "_node.png";
         img.style.maxHeight = "216px";
