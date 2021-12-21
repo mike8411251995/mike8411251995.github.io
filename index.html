@@ -1,48 +1,125 @@
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
 <script type="text/javascript" charset="UTF-8" src="data.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
+<link rel="stylesheet" href="styles.css">
 
 <div id="example"></div>
 
 <script>
+    // Event for `keydown` event. Add condition after delay of 200 ms which is counted from the time of last pressed key.
+    const debounceFn = Handsontable.helper.debounce((colIndex, event) => {
+        const filtersPlugin = hot.getPlugin('filters');
+        filtersPlugin.removeConditions(colIndex);
+        filtersPlugin.addCondition(colIndex, 'contains', [event.target.value]);
+        filtersPlugin.filter();
+    }, 100);
+
+    const addEventListeners = (input, colIndex) => {
+        input.addEventListener('keydown', event => {
+            debounceFn(colIndex, event);
+        });
+    };
+
+    // Build elements which will be displayed in header.
+    const getInitializedElements = colIndex => {
+        const div = document.createElement('div');
+        const input = document.createElement('input');
+        div.className = 'filterHeader';
+        addEventListeners(input, colIndex);
+        div.appendChild(input);
+        return div;
+    };
+
+    // Add elements to header on `afterGetColHeader` hook.
+    const addInput = (col, TH) => {
+        // Hooks can return a value other than number (for example `columnSorting` plugin uses this).
+        if (typeof col !== 'number') { return col; }
+        if (col >= 0 && TH.childElementCount < 2) { TH.appendChild(getInitializedElements(col)); }
+    };
+
     const data = map;
 
     const container = document.getElementById('example');
     const hot = new Handsontable(container, {
         data,
-        colWidths: [200, 400, 390],
-        colHeaders: ['id', 'seq', 'img'],
+        colWidths: [390, 100, 390, 100, 390, 390],
+        colHeaders: ['src', 'prev', 'id', 'next', 'dst', 'seqs'],
         height: 'auto',
         rowHeights: 220,
         columns: [
-            { data: 'id', renderer: 'html' },
-            { data: 'seq', renderer: seqRenderer },
-            { data: 'id', renderer: imgRenderer },
-            // { data: 'comments', renderer: safeHtmlRenderer },
-            // { data: 'cover', renderer: coverRenderer }
+            { data: 'src', renderer: nodeRenderer, readOnly: true, className: 'htCenter htMiddle' },
+            { data: 'prev', renderer: linkRenderer, readOnly: true, className: 'htCenter htMiddle' },
+            { data: 'id', renderer: nodeRenderer, readOnly: true, className: 'htCenter htMiddle' },
+            { data: 'next', renderer: linkRenderer, readOnly: true, className: 'htCenter htMiddle' },
+            { data: 'dst', renderer: nodeRenderer, readOnly: true, className: 'htCenter htMiddle' },
+            { data: 'seqs', renderer: seqRenderer, readOnly: true, className: 'htMiddle' },
         ],
-        // className: 'htCenter htMiddle',
+        className: 'htCenter htMiddle',
+        columnSorting: true,
         contextMenu: true,
+        hiddenColumns: true,
         rowHeaders: true,
         manualRowMove: true,
+        manualColumnMove: true,
+        manualRowResize: true,
+        manualColumnResize: true,
+        dropdownMenu: true,
+        filters: true,
+        comments: true,
+        afterGetColHeader: addInput,
+        beforeOnCellMouseDown(event, coords) {
+            // Deselect the column after clicking on input.
+            if (coords.row === -1 && event.target.nodeName === 'INPUT') {
+            event.stopImmediatePropagation();
+            this.deselectCell();
+            }
+        },
         licenseKey: 'non-commercial-and-evaluation'
     });
 
-    function imgRenderer(instance, td, row, col, prop, value, cellProperties) {
-        const stringifiedValue = Handsontable.helper.stringify(value);
+    function nodeRenderer(instance, td, row, col, prop, value, cellProperties) {
+        if (value == null) { return };
 
+        Handsontable.renderers.cellDecorator.apply(this, arguments);
         const img = document.createElement('IMG');
 
-        img.src = "imgs/nodes/f" + value + "_node.png";
+        img_id = value.split(',')[0]
+
+        img.src = "imgs/nodes/f" + img_id + "_node.png";
         img.style.maxHeight = "216px";
         img.style.maxWidth = "384px";
         img.style.height = "auto";
         img.style.width = "auto";
-        // img.style.width = "384px";
-        // img.style.height = "216px";
+        img.title = "f" + img_id;
         img.addEventListener('click', function (e) {
-            //here you can do anything you like 
-            window.open("imgs/nodes/f" + stringifiedValue + "_full.png");
+            window.open("imgs/nodes/f" + img_id + "_full.png");
+        });
+
+        Handsontable.dom.addEvent(img, 'mousedown', event =>{
+            event.preventDefault(); // prevent selection quirk
+        });
+
+        Handsontable.dom.empty(td);
+        td.appendChild(img);
+    }
+
+    function linkRenderer(instance, td, row, col, prop, value, cellProperties) {
+        if (value == null || value.length != 15 || value[0] != 'f' || value[8] != 'f' || value[7] != '-') {
+            Handsontable.renderers.TextRenderer.apply(this, arguments);
+            return;
+        }
+
+        Handsontable.renderers.cellDecorator.apply(this, arguments);
+        const img = document.createElement('IMG');
+
+        img.src = "imgs/links/" + value + "_crop.png";
+        img.style.maxHeight = "50px";
+        img.style.maxWidth = "95px";
+        img.style.height = "auto";
+        img.style.width = "auto";
+        img.title = value;
+        img.addEventListener('click', function (e) {
+            window.open("imgs/links/" + value + "_full.png");
         });
 
         Handsontable.dom.addEvent(img, 'mousedown', event =>{
@@ -54,12 +131,13 @@
     }
 
     function seqRenderer(instance, td, row, col, prop, value, cellProperties) {
-        // be sure you only allow certain HTML tags to avoid XSS threats
-        // (you should also remove unwanted HTML attributes)
-        td.innerHTML = Handsontable.helper.sanitize(
-            "<a href='" + value + ".html'>" + value + "</a>", {
-            ALLOWED_TAGS: ['em', 'b', 'strong', 'a', 'big'],
-        });
+        Handsontable.renderers.cellDecorator.apply(this, arguments);
+        text = ""
+        for (let i = 0; i < value.length; i++) {
+            text += "<a href='" + value[i] + ".html' target='_blank'>" + value[i] + "</a>";
+            if (i != value.length - 1) { text += "<br>"; }
+        }
+        td.innerHTML = text;
     }
 
 </script>
