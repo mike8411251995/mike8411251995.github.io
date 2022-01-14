@@ -52,7 +52,7 @@
     const blankCell = (params) => {
       const resultElement = document.createElement("span");
       const imageElement = document.createElement("img");
-      
+
       imageElement.src = "imgs/blank_icon.png";
       imageElement.style.maxHeight = "50px";
       imageElement.style.maxWidth = "50px";
@@ -64,8 +64,8 @@
 
     const nodeRenderer = (params) => {
       var value = params.value
-      if (value == false) { return blankCell(params); }
-      else if (value == null) { return null; }
+      // if (value == false) { return blankCell(params); }
+      if (value == null) { return null; }
       const resultElement = document.createElement("span");
       const imageElement = document.createElement("img");
       const img_id = pad(value, 6)
@@ -87,12 +87,12 @@
       if (value == false) { return blankCell(params); }
       else if (value == null) { return null; }
       else if (typeof value === 'string') { return value; }
-      
+
       const link = "f" + pad(value[0], 6) + "-f" + pad(value[1], 6);
 
       const resultElement = document.createElement("span");
       const imageElement = document.createElement("img");
-      
+
       imageElement.src = "imgs/links/" + link + "_crop.png";
       imageElement.style.maxHeight = "50px";
       imageElement.style.maxWidth = "95px";
@@ -116,7 +116,7 @@
         imageElement.style.height = "40px";
         imageElement.style.width = "40px";
         imageElement.addEventListener("click", function (e) {
-          window.open(params.value[i] + ".html");
+          window.open(params.value[i] + ".html?" + pad(params.data.id, 6));
         });
         imageElement.title = params.value[i]
         resultElement.appendChild(imageElement);
