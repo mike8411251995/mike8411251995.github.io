@@ -1,4 +1,4 @@
-.center, .current {
+.center, .current, .red {
   display: flex!important;
   justify-content: center;
   align-items: center;
@@ -12,6 +12,10 @@
 
 .current {
   background-color: lightgreen;
+}
+
+.red {
+  background-color: rgb(233, 64, 64);
 }
 
 .example-wrapper {
@@ -40,11 +44,42 @@
   opacity: 0;
 }
 
-.custom-tooltip p {
-  margin: 5px;
-  white-space: nowrap;
+/*
+ Ag-grid's default row hover and row selected colour have some transparency. But, since our action buttons column is placed absolutely over other columns, its background looks darker because of the way those transparent colours blend. So, it is better to use background colours with no transparency in this method.
+*/
+.ag-theme-alpine {
+  --ag-row-hover-color: hsl(207, 90%, 94%);
+  --ag-selected-row-background-color: hsl(207, 87%, 86%);
 }
 
-.custom-tooltip p:first-of-type {
-  font-weight: bold;
+/* Hide right header and spacer */
+.ag-pinned-right-header,
+.ag-horizontal-right-spacer {
+  width: 0 !important;
+  min-width: 0 !important;
+}
+
+/* Add absolute position so that action buttons column will appear on top of other columns. pointer-events: none to pass on mousemove event to behind columns */
+.ag-pinned-right-cols-container {
+  position: absolute !important;
+  right: 1;
+  pointer-events: none;
+}
+/* Reset pointer-events so that click can happen on action buttons */
+.ag-pinned-right-cols-container * {
+  pointer-events: initial;
+}
+
+/* Hide border of right-cols-container */
+.ag-pinned-right-cols-container .ag-cell {
+  border: none !important;
+}
+
+/* Show action buttons only for row that is being hovered. For rows which are not being hovered, hide them by setting their width and padding to 0.*/
+.ag-pinned-right-cols-container .ag-row-group,
+.ag-pinned-right-cols-container .ag-row-group .ag-cell,
+.ag-pinned-right-cols-container .ag-row:not(.ag-row-hover),
+.ag-pinned-right-cols-container .ag-row:not(.ag-row-hover) .ag-cell {
+  width: 0 !important;
+  padding: 0 !important;
 }

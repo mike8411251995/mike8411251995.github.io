@@ -42,27 +42,28 @@
         dst: element.dst,
         next: element.next,
       };
+      element["#"] = element.id;
     }); // idDict[id] = information dictionary
 
     function getNeighborNode(curId, n, front) {
       var target = curId;
-      if (front) { for (let i=0; i<n; i++) { target = idDict[target].dst; } }
-      else { for (let i=0; i<n; i++) { target = idDict[target].src; } };
+      if (front) { for (let i = 0; i < n; i++) { target = idDict[target].dst; } }
+      else { for (let i = 0; i < n; i++) { target = idDict[target].src; } };
       return target;
     }
 
     function getNeighborLink(curId, n, front) {
       var target = curId;
-      if (front) { for (let i=0; i<n; i++) { target = idDict[target].dst; } }
-      else { for (let i=0; i<n; i++) { target = idDict[target].src; } };
+      if (front) { for (let i = 0; i < n; i++) { target = idDict[target].dst; } }
+      else { for (let i = 0; i < n; i++) { target = idDict[target].src; } };
       if (front) { return idDict[target].prev; }
       else { return idDict[target].next; };
     }
 
-    for (let i=0; i<data_.length; i++) {
+    for (let i = 0; i < data_.length; i++) {
       var src_unique, dst_unique;
       data_[i].src_cur_dst = idDict[data_[i].src].unique + "," + data_[i].unique + "," + idDict[data_[i].dst].unique;
-      for (let j=2; j<=5; j++) {
+      for (let j = 2; j <= 5; j++) {
         data_[i]["src" + j] = getNeighborNode(data_[i].id, j, false);
         data_[i]["prev" + j] = getNeighborLink(data_[i].id, j, false);
         data_[i]["dst" + j] = getNeighborNode(data_[i].id, j, true);
@@ -113,7 +114,7 @@
 
     // specify the columns
     const columnDefs = [
-      { headerName: "#", field: "id", width: 120, rowDrag: rowDrag, checkboxSelection: true, tooltipComponent: false },
+      { headerName: "#", field: "#", width: 120, rowDrag: rowDrag, checkboxSelection: true, tooltipComponent: false },
       { headerName: "Flow", field: "seqs", width: 100, cellRenderer: "seqRenderer", editable: false, tooltipComponent: false },
 
       { headerName: "前", groupId: "back", children: [
@@ -125,15 +126,15 @@
         { headerName: "🡺", columnGroupShow: "open", field: "prev3", width: 70, cellRenderer: "linkRenderer" },
         { headerName: "前二畫面", columnGroupShow: "open", field: "src2", width: 270, cellRenderer: "nodeRenderer" },
         { headerName: "🡺", columnGroupShow: "open", field: "prev2", width: 70, cellRenderer: "linkRenderer" },
-        { headerName: "前一畫面", field: "src", width: 270, cellRenderer: "nodeRenderer", aggFunc: "first" },
+        { headerName: "前一畫面", field: "src", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max" },
         { headerName: "🡺", field: "prev", width: 70, cellRenderer: "linkRenderer" },
       ]},
 
-      { headerName: "當前畫面", field: "id", width: 270, cellRenderer: "nodeRenderer", aggFunc: "first", cellClass: "current", editable: false },
+      { headerName: "當前畫面", field: "id", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max", cellClass: "current", editable: false },
 
       { headerName: "後", groupId: "front", children: [
         { headerName: "🡺", field: "next", width: 70, cellRenderer: "linkRenderer" },
-        { headerName: "後一畫面", field: "dst", width: 270, cellRenderer: "nodeRenderer", aggFunc: "first" },
+        { headerName: "後一畫面", field: "dst", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max" },
         { headerName: "🡺", columnGroupShow: "open", field: "next2", width: 70, cellRenderer: "linkRenderer" },
         { headerName: "後二畫面", columnGroupShow: "open", field: "dst2", width: 270, cellRenderer: "nodeRenderer" },
         { headerName: "🡺", columnGroupShow: "open", field: "next3", width: 70, cellRenderer: "linkRenderer" },
@@ -146,6 +147,8 @@
 
       { headerName: "類別 (當前畫面)", field: "unique", hide: true, rowGroup: true, editable: false, cellRenderer: "uniqueRenderer" },
       { headerName: "類別 (前一畫面🡺當前畫面🡺後一畫面)", field: "src_cur_dst", hide: true, rowGroup: true, cellRenderer: "uniqueRenderer", editable: false },
+
+      { headerName: "按鈕", width: 50, pinned: "right", cellRenderer: "actionRenderer", cellClass: "red" },
     ];
 
     // row grouping
@@ -249,6 +252,19 @@
       }
     };
 
+    const actionRenderer = (params) => {
+      const resultElement = document.createElement("span");
+      const imageElement = document.createElement("img");
+
+      imageElement.src = "imgs/trash_icon_white.png";
+      imageElement.style.maxHeight = "30px";
+      imageElement.style.maxWidth = "30px";
+      imageElement.style.height = "auto";
+      imageElement.style.width = "auto";
+      resultElement.appendChild(imageElement);
+      return resultElement;
+    };
+
     // ************* Grid Options ************* //
 
     const gridOptions = {
@@ -257,6 +273,7 @@
         linkRenderer: linkRenderer,
         seqRenderer: seqRenderer,
         uniqueRenderer: uniqueRenderer,
+        actionRenderer: actionRenderer,
         customTooltip: CustomTooltip,
       },
       rowHeight: 170,
@@ -289,6 +306,7 @@
       suppressRowClickSelection: true,
       suppressClickEdit: true,
       undoRedoCellEditing: true,
+      tooltipMouseTrack: true,
     };
 
     // ************* Helper Functions ************* //
@@ -333,8 +351,8 @@
       for (let i = start; i <= end; i++) {
         let data = gridApi.rowModel.rowsToDisplay[i].data;
         columns.forEach(column => {
-          console.log(data[column])
-          data[column] = -2;
+          // console.log(column)
+          if (!["#", "seqs", "ag-Grid-AutoColumn"].includes(column)) data[column] = -2;
         });
         itemsToUpdate.push(data);
       }
