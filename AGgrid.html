@@ -79,9 +79,9 @@
       init(params) {
         const eGui = (this.eGui = document.createElement("div"));
         const value = params.value.value
-        if (value == -1 || typeof value === "undefined") return;
-        if (typeof value === 'string' || value instanceof String) return;
-        
+        if (typeof value === "undefined" || value < 0) return;
+        if (typeof value === "string" || value instanceof String) return;
+
         eGui.classList.add("custom-tooltip");
         const imageElement = document.createElement("img");
         if (value instanceof Array) {
@@ -113,7 +113,8 @@
 
     // specify the columns
     const columnDefs = [
-      { headerName: "#", field: "id", width: 120, rowDrag: rowDrag, checkboxSelection: true },
+      { headerName: "#", field: "id", width: 120, rowDrag: rowDrag, checkboxSelection: true, tooltipComponent: false },
+      { headerName: "Flow", field: "seqs", width: 100, cellRenderer: "seqRenderer", editable: false, tooltipComponent: false },
 
       { headerName: "前", groupId: "back", children: [
         { headerName: "前五畫面", columnGroupShow: "open", field: "src5", width: 270, cellRenderer: "nodeRenderer" },
@@ -124,15 +125,15 @@
         { headerName: "🡺", columnGroupShow: "open", field: "prev3", width: 70, cellRenderer: "linkRenderer" },
         { headerName: "前二畫面", columnGroupShow: "open", field: "src2", width: 270, cellRenderer: "nodeRenderer" },
         { headerName: "🡺", columnGroupShow: "open", field: "prev2", width: 70, cellRenderer: "linkRenderer" },
-        { headerName: "前一畫面", field: "src", width: 270, cellRenderer: "nodeRenderer" },
+        { headerName: "前一畫面", field: "src", width: 270, cellRenderer: "nodeRenderer", aggFunc: "first" },
         { headerName: "🡺", field: "prev", width: 70, cellRenderer: "linkRenderer" },
       ]},
 
-      { headerName: "當前畫面", field: "id", width: 270, cellRenderer: "nodeRenderer", aggFunc: "first", cellClass: "current" },
+      { headerName: "當前畫面", field: "id", width: 270, cellRenderer: "nodeRenderer", aggFunc: "first", cellClass: "current", editable: false },
 
       { headerName: "後", groupId: "front", children: [
         { headerName: "🡺", field: "next", width: 70, cellRenderer: "linkRenderer" },
-        { headerName: "後一畫面", field: "dst", width: 270, cellRenderer: "nodeRenderer" },
+        { headerName: "後一畫面", field: "dst", width: 270, cellRenderer: "nodeRenderer", aggFunc: "first" },
         { headerName: "🡺", columnGroupShow: "open", field: "next2", width: 70, cellRenderer: "linkRenderer" },
         { headerName: "後二畫面", columnGroupShow: "open", field: "dst2", width: 270, cellRenderer: "nodeRenderer" },
         { headerName: "🡺", columnGroupShow: "open", field: "next3", width: 70, cellRenderer: "linkRenderer" },
@@ -143,9 +144,8 @@
         { headerName: "後五畫面", columnGroupShow: "open", field: "dst5", width: 270, cellRenderer: "nodeRenderer" },
       ]},
 
-      { headerName: "Flow", field: "seqs", width: 100, cellRenderer: "seqRenderer" },
-      { headerName: "類別 (當前畫面)", field: "unique", hide: true, rowGroup: true },
-      { headerName: "類別 (前一畫面🡺當前畫面🡺後一畫面)", field: "src_cur_dst", hide: true, rowGroup: true, cellRenderer: "uniqueRenderer" },
+      { headerName: "類別 (當前畫面)", field: "unique", hide: true, rowGroup: true, editable: false, cellRenderer: "uniqueRenderer" },
+      { headerName: "類別 (前一畫面🡺當前畫面🡺後一畫面)", field: "src_cur_dst", hide: true, rowGroup: true, cellRenderer: "uniqueRenderer", editable: false },
     ];
 
     // row grouping
@@ -157,11 +157,12 @@
 
     // ************* Cell Renderers ************* //
 
-    const blankCell = (params) => {
+    const specialCell = (value) => {
       const resultElement = document.createElement("span");
       const imageElement = document.createElement("img");
 
-      imageElement.src = "imgs/blank_icon.png";
+      if (value == -1) imageElement.src = "imgs/blank_icon.png";
+      else if (value == -2) imageElement.src = "imgs/trash_icon.png";
       imageElement.style.maxHeight = "30px";
       imageElement.style.maxWidth = "30px";
       imageElement.style.height = "auto";
@@ -172,8 +173,8 @@
 
     const nodeRenderer = (params) => {
       var value = params.value
-      if (value == -1) { return blankCell(params); }
       if (value == null) { return null; }
+      if (value < 0) { return specialCell(value); }
       const resultElement = document.createElement("span");
       const imageElement = document.createElement("img");
       const img_id = pad(value, 6)
@@ -192,9 +193,9 @@
 
     const linkRenderer = (params) => {
       var value = params.value
-      if (value == -1) { return blankCell(params); }
-      else if (value == null) { return null; }
-      else if (typeof value === "string") { return value; }
+      if (typeof value === "string") { return value; }
+      if (value == null) { return null; }
+      if (value < 0) { return specialCell(value); }
 
       const link = "f" + pad(value[0], 6) + "-f" + pad(value[1], 6);
 
@@ -237,10 +238,15 @@
     };
 
     const uniqueRenderer = (params) => {
-      var src = params.value.split(",")[0]
-      var cur = "<b>" + params.value.split(",")[1] + "</b>"
-      var dst = params.value.split(",")[2]
-      return [src, cur, dst].join(" 🡺 ")
+      if (params.value.includes(",")) {
+        var src = params.value.split(",")[0]
+        var cur = "<span style='color:green'>" + params.value.split(",")[1] + "</span>"
+        var dst = params.value.split(",")[2]
+        return [src, cur, dst].join(" 🡺 ")
+      }
+      else {
+        return "<b style='color:green'>" + params.value + "</b>"
+      }
     };
 
     // ************* Grid Options ************* //
@@ -259,6 +265,7 @@
       animateRows: true,
       defaultColDef: {
         suppressKeyboardEvent: removeSelectedRows,
+        editable: true,
         sortable: true,
         filter: true,
         resizable: true,
@@ -270,14 +277,18 @@
       tooltipShowDelay: 500,
       columnDefs: columnDefs,
       rowGroupPanelShow: "always",
-      enableGroupEdit: true,
+      enableGroupEdit: false,
       suppressDragLeaveHidesColumns: true,
       suppressMakeColumnVisibleAfterUnGroup: true,
       onRowDragMove: onRowDragMove,
       autoGroupColumnDef: autoGroupColumnDef,
       groupSelectsChildren: true,
       rowSelection: "multiple",
-      suppressAggFuncInHeader : true,
+      suppressAggFuncInHeader: true,
+      enableRangeSelection: true,
+      suppressRowClickSelection: true,
+      suppressClickEdit: true,
+      undoRedoCellEditing: true,
     };
 
     // ************* Helper Functions ************* //
@@ -289,13 +300,46 @@
         let isBackspaceKey = params.event.keyCode === 8;
         let isDeleteKey = params.event.keyCode === 46;
 
-        if (isBackspaceKey || isDeleteKey) {
+        if (isBackspaceKey) {
           const selectedRows = params.api.getSelectedRows();
           params.api.applyTransaction({ remove: selectedRows });
           return true;
         }
+
+        if (isDeleteKey) {
+          params.api.getCellRanges().forEach(range => {
+            let colIds = range.columns.map(col => col.colId);
+
+            let startRowIndex = Math.min(
+              range.startRow.rowIndex,
+              range.endRow.rowIndex
+            );
+            let endRowIndex = Math.max(
+              range.startRow.rowIndex,
+              range.endRow.rowIndex
+            );
+
+            clearCells(startRowIndex, endRowIndex, colIds, params.api);
+          });
+          return true;
+        }
       }
       return false;
+    }
+
+    function clearCells(start, end, columns, gridApi) {
+      let itemsToUpdate = [];
+
+      for (let i = start; i <= end; i++) {
+        let data = gridApi.rowModel.rowsToDisplay[i].data;
+        columns.forEach(column => {
+          console.log(data[column])
+          data[column] = -2;
+        });
+        itemsToUpdate.push(data);
+      }
+
+      gridApi.applyTransaction({ update: itemsToUpdate });
     }
 
     function onRowDragMove(event) {
