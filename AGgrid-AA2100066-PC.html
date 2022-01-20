@@ -1,7 +1,6 @@
 <!DOCTYPE html>
-<html lang="zh-Hant" style="margin: 0px; height: 98%">
+<html style="margin: 0px; height: 98%">
 <head>
-  <title>AGgrid Viewer</title>
   <script src="https://unpkg.com/ag-grid-enterprise/dist/ag-grid-enterprise.min.noStyle.js"
           integrity="sha384-DEQdyWEjh/o0F7sUFf+iRK/5fpAaRagfs95IjczaKEivNFffajk6vjQSWn997IRP"
           crossorigin="anonymous"></script>
@@ -115,7 +114,7 @@
 
     // specify the columns
     const columnDefs = [
-      { headerName: "#", field: "#", width: 90, checkboxSelection: true, tooltipComponent: false },
+      { headerName: "#", field: "#", width: 120, checkboxSelection: true, tooltipComponent: false },
       { headerName: "Flow", field: "seqs", width: 100, cellRenderer: "seqRenderer", editable: false, tooltipComponent: false },
 
       { headerName: "前", groupId: "back", children: [
@@ -154,7 +153,6 @@
 
     // row grouping
     const autoGroupColumnDef = {
-      width: 400,
       headerName: "類別",
       cellRenderer: "agGroupCellRenderer",
       cellClass: "left",
@@ -354,7 +352,7 @@
         let data = gridApi.rowModel.rowsToDisplay[i].data;
         columns.forEach(column => {
           // console.log(column)
-          if (!["#", "id", "seqs", "ag-Grid-AutoColumn"].includes(column)) data[column] = -2;
+          if (!["#", "seqs", "ag-Grid-AutoColumn"].includes(column)) data[column] = -2;
         });
         itemsToUpdate.push(data);
       }
