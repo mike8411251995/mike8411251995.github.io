@@ -13,9 +13,16 @@
 <body style="margin: 10px; height: 100%">
   <div class="example-wrapper">
     <div style="margin-bottom: 5px;">
-      <button onclick="expandFirstLevel()">全部展開</button>
-      <button onclick="collapseFirstLevel()">全部收合</button>
-      <!-- <button onclick="autoSizeAll(false)">自動調整欄位寬度</button> -->
+      <!-- <button onclick="expandFirstLevel()">全部展開</button> -->
+      <!-- <button onclick="collapseFirstLevel()">全部收合</button> -->
+      <!-- <button onclick="finishEdit()" style="float: right;">編輯完成</button> -->
+      <label class="switch">
+        <input onclick="toggleMode()" type="checkbox" id="togBtn">
+        <div class="slider round">
+         <span class="on">唯讀模式</span>
+         <span class="off">編輯模式</span>
+        </div>
+      </label>
     </div>
     <div id="myGrid" class="ag-theme-alpine">
     </div>
@@ -24,17 +31,16 @@
 
   <script type="text/javascript" charset="utf-8">
 
+    // ************* Edit/Read-Only Mode ************* //
+
+    var editMode = true;
+    var tempData = null;
+
     // ************* Data Preparation ************* //
 
     // get external data
     const idDict = {};
-    idDict[-1] = {
-      unique: "❌",
-      src: -1,
-      prev: -1,
-      dst: -1,
-      next: -1,
-    };
+    idDict[-1] = { unique: "❌", src: -1, prev: -1, dst: -1, next: -1 };
     data_.forEach(element => {
       idDict[element.id] = {
         unique: element.unique,
@@ -108,12 +114,6 @@
 
     // ************* Column Definitions ************* //
 
-    var rowDrag = function (params) {
-      // only rows that are NOT groups should be draggable
-      return !params.node.group;
-    };
-
-    // specify the columns
     const columnDefs = [
       { headerName: "#", field: "#", width: 90, checkboxSelection: true, tooltipComponent: false },
       { headerName: "Flow", field: "seqs", width: 100, cellRenderer: "seqRenderer", editable: false, tooltipComponent: false },
@@ -178,6 +178,7 @@
 
     const nodeRenderer = (params) => {
       var value = params.value
+      if (value == "-2") { return specialCell(-2); }
       if (value == null) { return null; }
       if (value < 0) { return specialCell(value); }
       const resultElement = document.createElement("span");
@@ -198,6 +199,7 @@
 
     const linkRenderer = (params) => {
       var value = params.value
+      if (value == "-2") { return specialCell(-2); }
       if (typeof value === "string") { return value; }
       if (value == null) { return null; }
       if (value < 0) { return specialCell(value); }
@@ -263,6 +265,10 @@
       imageElement.style.maxWidth = "30px";
       imageElement.style.height = "auto";
       imageElement.style.width = "auto";
+      imageElement.addEventListener("click", function (e) {
+        const currentRow = params.node.data;
+        params.api.applyTransaction({ remove: [currentRow] });
+      });
       resultElement.appendChild(imageElement);
       return resultElement;
     };
@@ -280,10 +286,9 @@
       },
       rowHeight: 170,
       rowData: data,
-      // rowDragManaged: true,
       animateRows: true,
       defaultColDef: {
-        suppressKeyboardEvent: removeSelectedRows,
+        suppressKeyboardEvent: clearSelected,
         editable: true,
         sortable: true,
         filter: true,
@@ -299,7 +304,6 @@
       enableGroupEdit: false,
       suppressDragLeaveHidesColumns: true,
       suppressMakeColumnVisibleAfterUnGroup: true,
-      onRowDragMove: onRowDragMove,
       autoGroupColumnDef: autoGroupColumnDef,
       groupSelectsChildren: true,
       rowSelection: "multiple",
@@ -308,6 +312,7 @@
       suppressRowClickSelection: true,
       suppressClickEdit: true,
       undoRedoCellEditing: true,
+      undoRedoCellEditingLimit: 50,
       tooltipMouseTrack: true,
     };
 
@@ -315,18 +320,26 @@
 
     function pad(num, size) { return ("000000" + num).substr(-size); }
 
-    function removeSelectedRows(params) {
+    function getFirstNotDeleted(array) {
+      if (!array.includes("-2") && !array.includes(-2)) return array[0];
+      for (let i = 0; i < array.length; i++) {
+        if (!(array[i] == "-2") && !(array[i] == -2)) return array[i];
+      }
+      return -1;
+    }
+
+    function clearSelected(params) {
       if (!params.editing) {
         let isBackspaceKey = params.event.keyCode === 8;
         let isDeleteKey = params.event.keyCode === 46;
 
-        if (isBackspaceKey) {
+        if (isBackspaceKey) { // Deletes entire rows
           const selectedRows = params.api.getSelectedRows();
           params.api.applyTransaction({ remove: selectedRows });
           return true;
         }
 
-        if (isDeleteKey) {
+        if (isDeleteKey) { // Deletes selected cells
           params.api.getCellRanges().forEach(range => {
             let colIds = range.columns.map(col => col.colId);
 
@@ -353,39 +366,11 @@
       for (let i = start; i <= end; i++) {
         let data = gridApi.rowModel.rowsToDisplay[i].data;
         columns.forEach(column => {
-          // console.log(column)
-          if (!["#", "id", "seqs", "ag-Grid-AutoColumn"].includes(column)) data[column] = -2;
+          if (["#", "id", "seqs", "ag-Grid-AutoColumn"].includes(column)) return;
+          if (data[column] == -1) return;
+          gridApi.startEditingCell({rowIndex: i, colKey: column, charPress: "-2"});
+          gridApi.stopEditing();
         });
-        itemsToUpdate.push(data);
-      }
-
-      gridApi.applyTransaction({ update: itemsToUpdate });
-    }
-
-    function onRowDragMove(event) {
-      var movingNode = event.node;
-      var overNode = event.overNode;
-
-      // find out what unique group we are hovering over
-      var groupUnique;
-      if (overNode.group) {
-        // if over a group, we take the group key (which will be the
-        // unique as we are grouping by unique)
-        groupUnique = overNode.key;
-      } else {
-        // if over a non-group, we take the unique directly
-        groupUnique = overNode.data.unique;
-      }
-
-      var needToChangeParent = movingNode.unique !== groupUnique;
-
-      if (needToChangeParent) {
-        var movingData = movingNode.data;
-        movingData.unique = groupUnique;
-        gridOptions.api.applyTransaction({
-          update: [movingData],
-        });
-        gridOptions.api.clearFocusedCell();
       }
     }
 
@@ -412,6 +397,84 @@
           node.setExpanded(false);
         }
       });
+    }
+
+    function toggleMode() {
+      const colsToHide = [
+        "src2", "src3", "src4", "src5",
+        "prev2", "prev3", "prev4", "prev5",
+        "dst2", "dst3", "dst4", "dst5",
+        "next2", "next3", "next4", "next5",
+      ];
+
+      if (!editMode) {
+        gridOptions.api.setColumnDefs([]);
+        gridOptions.api.setColumnDefs(columnDefs);
+        editMode = true;
+        gridOptions.api.setRowData(tempData);
+      }
+
+      else {
+        // Save current data for later edit
+        tempData = getAllRows();
+
+        // Replace manually deleted links
+        gridOptions.api.forEachNode((node, index) => {
+          updateDeletedLinks(node, index);
+        });
+
+        // Update column definitions to read-only mode
+        var colDefs = gridOptions.api.getColumnDefs();
+        colDefs.forEach(function(colDef, index) {
+          // console.log(colDef.headerName)
+          if (colDef.children !== undefined) {
+            for (let i = 0; i < colDef.children.length; i++) {
+              if (colsToHide.includes(colDef.children[i].field)) colDef.children[i].hide = true;
+              colDef.children[i].editable = false;
+              colDef.children[i].suppressKeyboardEvent = false;
+              colDef.children[i].checkboxSelection = false;
+            }
+          }
+          else {
+            colDef.editable = false;
+            colDef.suppressKeyboardEvent = false;
+            colDef.checkboxSelection = false;
+          }
+        });
+        gridOptions.api.setColumnDefs(colDefs);
+
+        // Export to CSV
+        gridOptions.api.exportDataAsCsv({
+          skipRowGroups: true,
+          allColumns: true,
+          skipColumnGroupHeaders: true,
+          skipColumnHeaders: true,
+          prependContent: "h,e,l,l,o,\n",
+        });
+
+        editMode = false;
+      }
+    }
+
+    function updateDeletedLinks(node, index) {
+      if (!node.group) {
+        var srcs = [node.data.src, node.data.src2, node.data.src3, node.data.src4, node.data.src5];
+        var prevs = [node.data.prev, node.data.prev2, node.data.prev3, node.data.prev4, node.data.prev5];
+        var dsts = [node.data.dst, node.data.dst2, node.data.dst3, node.data.dst4, node.data.dst5];
+        var nexts = [node.data.next, node.data.next2, node.data.next3, node.data.next4, node.data.next5];
+
+        node.setDataValue("src", getFirstNotDeleted(srcs))
+        node.setDataValue("prev", getFirstNotDeleted(prevs))
+        node.setDataValue("dst", getFirstNotDeleted(dsts))
+        node.setDataValue("next", getFirstNotDeleted(nexts))
+      }
+    }
+
+    function getAllRows() {
+      let rowData = [];
+      gridOptions.api.forEachNode(node => rowData.push(node.data));
+      rowData = rowData.filter(x => x !== undefined);
+      return JSON.parse(JSON.stringify(rowData));
     }
 
     // ************* Initialization ************* //
