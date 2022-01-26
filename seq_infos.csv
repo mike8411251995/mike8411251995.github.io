@@ -1,4 +1,11 @@
 Sequence,Screen,CC_AlgyExam,CC_AnatPathoReport,CC_CardioExam,CC_ClinicExam,CC_ClinicPathoExam,CC_ClinicPathoExamReport,CC_CloudHis,CC_IcdQuery,CC_ImmExam,CC_Login,CC_OpdReport,CC_Opr,CC_Patients,CC_PhmHis,CC_Soap,CC_Tocc,CC_WriteCard
+20220125_lee_login_seq00,,,,,,,,,,,V,,,V,,,,
+20220125_lee_login_seq01,,,,,,,,,,,V,,,V,,,,
+20220125_lee_login_seq02,,,,,,,,,,,V,,,V,,,,
+20220125_lee_login_seq03,,,,,,,,,,,V,,,V,,,,
+20220125_lee_login_seq04,,,,,,,,,,,V,,,V,,,,
+20220125_lee_login_all,,,,,,,,,,,V,,,V,,,,
+20220125_lee_login_all_merged,,,,,,,,,,,V,,,V,,,,
 20220125_lee_enterSOAP_seq00,,,,,,,,,,,,,,V,,V,,
 20220125_lee_enterSOAP_seq01,,,,,,,,,,,,,,V,,V,,
 20220125_lee_enterSOAP_seq02,,,,,,,,,,,,,,V,,V,,

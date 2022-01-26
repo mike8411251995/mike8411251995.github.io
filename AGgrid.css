@@ -1,3 +1,15 @@
+/************************* Normal Texts *************************/
+
+.text-title {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-weight: bold;
+}
+
+.text-content {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #3b3b3b;
+}
+
 /************************* AGgrid Cell Styles *************************/
 
 .center, .cur, .src, .dst, .red {
@@ -8,7 +20,6 @@
 
 .left {
   display: flex!important;
-  justify-content: left;
   align-items: center;
 }
 
@@ -63,7 +74,7 @@
 /*
  Ag-grid's default row hover and row selected colour have some transparency. But, since our action buttons column is placed absolutely over other columns, its background looks darker because of the way those transparent colours blend. So, it is better to use background colours with no transparency in this method.
 */
-.ag-theme-alpine {
+.ag-theme-balham {
   --ag-row-hover-color: hsl(207, 90%, 94%);
   --ag-selected-row-background-color: hsl(207, 87%, 86%);
 }
@@ -98,6 +109,20 @@
 .ag-pinned-right-cols-container .ag-row:not(.ag-row-hover) .ag-cell {
   width: 0 !important;
   padding: 0 !important;
+}
+
+/************************* AGgrid Tool Panel *************************/
+
+.tp-blue {
+  background-color: rgb(141, 203, 228);
+}
+
+.tp-green {
+  background-color: lightgreen;
+}
+
+.tp-purple {
+  background-color: rgb(175, 155, 219);
 }
 
 /************************* Slider Toggle *************************/
@@ -160,7 +185,6 @@ input:checked + .mode-slider:before, input:checked + .group-slider:before {
   transform: translateX(80px);
 }
 
-/*------ ADDED CSS ---------*/
 .on
 {
   display: none;
@@ -182,8 +206,6 @@ input:checked+ .mode-slider .on, input:checked+ .group-slider .on
 
 input:checked + .mode-slider .off, input:checked + .group-slider .off
 {display: none;}
-
-/*--------- END --------*/
 
 /* Rounded sliders */
 .mode-slider.round, .group-slider.round {

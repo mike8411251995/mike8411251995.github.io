@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-Hant" style="margin: 0px; height: 98%">
 <head>
-  <title>AGgrid Viewer</title>
+  <title>Viewer (enterSOAP)</title>
   <script src="https://unpkg.com/ag-grid-enterprise/dist/ag-grid-enterprise.min.noStyle.js"
           integrity="sha384-DEQdyWEjh/o0F7sUFf+iRK/5fpAaRagfs95IjczaKEivNFffajk6vjQSWn997IRP"
           crossorigin="anonymous"></script>
   <script type="text/javascript" charset="UTF-8" src="data_enterSOAP.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/ag-grid-community/dist/styles/ag-grid.css">
-  <link rel="stylesheet" href="https://unpkg.com/ag-grid-community/dist/styles/ag-theme-alpine.css">
+  <link rel="stylesheet" href="https://unpkg.com/ag-grid-community/dist/styles/ag-theme-balham.css">
   <link rel="stylesheet" href="AGgrid.css">
 </head>
 <body style="margin: 10px; height: 100%">
@@ -21,26 +21,12 @@
          <span class="on">唯讀模式</span><span class="off">編輯模式</span>
         </div>
       </label>
-      <label class="switch">
-        <input onclick="toggleGrouping('src')" type="checkbox" id="togBtn">
-        <div class="group-slider round">
-         <span class="on">前一畫面</span><span class="off">前一畫面</span>
-        </div>
-      </label>
-      <label class="switch">
-        <input onclick="toggleGrouping('cur')" type="checkbox" id="togBtn" checked>
-        <div class="group-slider round">
-         <span class="on">當前畫面</span><span class="off">當前畫面</span>
-        </div>
-      </label>
-      <label class="switch">
-        <input onclick="toggleGrouping('dst')" type="checkbox" id="togBtn">
-        <div class="group-slider round">
-         <span class="on">後一畫面</span><span class="off">後一畫面</span>
-        </div>
-      </label>
+      <div>
+        <span class="text-title">🎦 記錄檔名 </span><span class="text-content">20220125_lee</span>　　　　
+        <span class="text-title">🔃 分段規則 </span><span class="text-content">enterSOAP</span>
+      </div>
     </div>
-    <div id="myGrid" class="ag-theme-alpine">
+    <div id="myGrid" class="ag-theme-balham">
     </div>
   </div>
 
@@ -134,23 +120,106 @@
     // ************* Column Definitions ************* //
 
     const columnDefs = [
-      { headerName: "#", field: "#", width: 90, checkboxSelection: true, tooltipComponent: false },
-      { headerName: "Flow", field: "seqs", width: 100, cellRenderer: "seqRenderer", editable: false, tooltipComponent: false },
-
-      { headerName: "前一畫面 (圖)", field: "src", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max", cellClass: "src" },
-      { headerName: "🡺", field: "prev", width: 70, cellRenderer: "linkRenderer" },
-
-      { headerName: "當前畫面 (圖)", field: "cur", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max", cellClass: "cur", editable: false },
-
-      { headerName: "🡺", field: "next", width: 70, cellRenderer: "linkRenderer" },
-      { headerName: "後一畫面 (圖)", field: "dst", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max", cellClass: "dst" },
-
-      { headerName: "當前畫面", field: "cur_class", hide: true, editable: true, cellRenderer: "classRenderer", rowGroup: true },
-      { headerName: "前一畫面", field: "src_class", hide: true, editable: true, cellRenderer: "classRenderer" },
-      { headerName: "後一畫面", field: "dst_class", hide: true, editable: true, cellRenderer: "classRenderer" },
-      { headerName: "前一畫面🡺當前畫面🡺後一畫面", field: "src_cur_dst", hide: true, editable: true, cellRenderer: "classRenderer" },
-
-      { headerName: "按鈕", width: 50, pinned: "right", cellRenderer: "actionRenderer", cellClass: "red" },
+      /* MISC */
+      {
+        headerName: "#",
+        field: "#",
+        width: 90,
+        checkboxSelection: true,
+        tooltipComponent: false
+      },
+      {
+        headerName: "Flow",
+        field: "seqs",
+        width: 100,
+        cellRenderer: "seqRenderer",
+        editable: false,
+        tooltipComponent: false
+      },
+      {
+        headerName: "按鈕",
+        width: 50,
+        pinned: "right",
+        cellRenderer: "actionRenderer",
+        cellClass: "red"
+      },
+      /* SRC */
+      {
+        headerName: "前一畫面 (圖)",
+        field: "src",
+        width: 270,
+        cellRenderer: "nodeRenderer",
+        aggFunc: "max",
+        cellClass: "src"
+      },
+      {
+        headerName: "前一畫面",
+        field: "src_class",
+        filter: true,
+        hide: true,
+        editable: true,
+        cellRenderer: "classRenderer",
+        cellClass: "src",
+        enableRowGroup: true,
+        toolPanelClass: ['tp-blue'],
+        suppressColumnsToolPanel: false,
+      },
+      {
+        headerName: "🡺",
+        field: "prev",
+        width: 70,
+        cellRenderer: "linkRenderer"
+      },
+      /* CUR */
+      {
+        headerName: "當前畫面 (圖)",
+        field: "cur",
+        width: 270,
+        cellRenderer: "nodeRenderer",
+        aggFunc: "max",
+        cellClass: "cur",
+        editable: false
+      },
+      {
+        headerName: "當前畫面",
+        field: "cur_class",
+        filter: true,
+        hide: true,
+        editable: true,
+        cellRenderer: "classRenderer",
+        cellClass: "cur",
+        enableRowGroup: true,
+        toolPanelClass: ['tp-green'],
+        suppressColumnsToolPanel: false,
+        rowGroup: true
+      },
+      /* DST */
+      {
+        headerName: "🡺",
+        field: "next",
+        width: 70,
+        cellRenderer: "linkRenderer"
+      },
+      {
+        headerName: "後一畫面 (圖)",
+        field: "dst",
+        width: 270,
+        cellRenderer: "nodeRenderer",
+        aggFunc: "max",
+        cellClass: "dst"
+      },
+      {
+        headerName: "後一畫面",
+        field: "dst_class",
+        filter: true,
+        hide: true,
+        editable: true,
+        cellRenderer: "classRenderer",
+        cellClass: "dst",
+        enableRowGroup: true,
+        toolPanelClass: ['tp-purple'],
+        suppressColumnsToolPanel: false,
+      },
     ];
 
     // row grouping
@@ -259,11 +328,13 @@
         return [src, cur, dst].join(" 🡺 ")
       }
       else {
+        var colField = params.node.field;
+        if (colField === undefined) colField = params.colDef.field;
         color = {
           "src_class": "blue",
           "cur_class": "green",
           "dst_class": "purple"
-        }[params.node.field]
+        }[colField]
         return "<b style='color:" + color + "'>" + params.value + "</b>"
       }
     };
@@ -301,18 +372,49 @@
       animateRows: true,
       defaultColDef: {
         suppressKeyboardEvent: clearSelected,
+        suppressMovable: true,
+        suppressColumnsToolPanel: true,
         editable: true,
         sortable: true,
-        filter: true,
+        filter: false,
         resizable: true,
         wrapText: true,
+        enableRowGroup: false,
+        lockVisible: true,
         cellClass: "center",
         tooltipComponent: "customTooltip",
         tooltipValueGetter: toolTipValueGetter,
       },
+      sideBar: {
+        toolPanels: [
+          {
+            id: "filters",
+            labelDefault: "篩選",
+            labelKey: "filters",
+            iconKey: "filter",
+            toolPanel: "agFiltersToolPanel",
+          },
+          {
+            id: "columns",
+            labelDefault: "群組",
+            labelKey: "columns",
+            iconKey: "columns",
+            toolPanel: "agColumnsToolPanel",
+            toolPanelParams: {
+              suppressValues: true,
+              suppressPivots: true,
+              suppressPivotMode: true,
+              suppressColumnFilter: true,
+              suppressColumnSelectAll: true,
+              suppressColumnExpandAll: true,
+            },
+          },
+        ],
+        defaultToolPanel: "filters",
+      },
       tooltipShowDelay: 500,
       columnDefs: columnDefs,
-      rowGroupPanelShow: "onlyWhenGrouping",
+      rowGroupPanelShow: false,
       enableGroupEdit: false,
       suppressDragLeaveHidesColumns: true,
       suppressMakeColumnVisibleAfterUnGroup: true,
@@ -327,6 +429,7 @@
       undoRedoCellEditingLimit: 50,
       tooltipMouseTrack: true,
       onCellDoubleClicked: (event) => doubleClickEdit(event),
+      onCellEditingStopped: (event) => finishedEdit(event),
     };
 
     // ************* Helper Functions ************* //
@@ -342,10 +445,17 @@
     }
 
     function clearSelected(params) {
-      if (!params.editing) {
-        let isBackspaceKey = params.event.keyCode === 8;
-        let isDeleteKey = params.event.keyCode === 46;
+      let isEnterKey = params.event.keyCode === 13;
+      let isBackspaceKey = params.event.keyCode === 8;
+      let isDeleteKey = params.event.keyCode === 46;
+      let isEscKey = params.event.keyCode === 27;
 
+      if (params.editing && (isEscKey || isEnterKey)) {
+        gridOptions.api.stopEditing();
+        return true;
+      }
+
+      if (!params.editing) {
         if (isBackspaceKey || isDeleteKey) { // Deletes entire rows
           const selectedRows = params.api.getSelectedRows();
           params.api.applyTransaction({ remove: selectedRows });
@@ -487,31 +597,23 @@
     }
 
     function doubleClickEdit(event) {
-      if (event.node.group) return;
       if (!event.colDef.headerName.includes("(圖)")) return;
+      if (event.node.group) {
+        alert("群組列不可編輯！");
+        return;
+      }
 
       var clickedCol = event.colDef.field;
       var clickedClassCol = clickedCol + "_class";
       var clickedData = event.node.data[clickedCol];
-      var clickedClass = event.node.data[clickedClassCol];
       if (clickedData == -1) return;
 
-      let newClass = prompt("Changing class of image to", clickedClass);
-      if (newClass != null && newClass != clickedClass) {
-        var changedData = [];
-        gridOptions.api.forEachNode(node => {
-          if (node.data === undefined) return;
-          var d = node.data;
-          if ([d.src, d.cur, d.dst].includes(clickedData)) {
-            if (d.src == clickedData) d.src_class = newClass;
-            if (d.cur == clickedData) d.cur_class = newClass;
-            if (d.dst == clickedData) d.dst_class = newClass;
-            changedData.push(d)
-          }
-        });
-        gridOptions.api.applyTransaction({ update: changedData });
-        gridOptions.api.clearFocusedCell();
-      }
+      var colDefs = gridOptions.api.getColumnDefs();
+      colDefs.forEach(function(colDef, index) {
+        if (colDef.field == clickedClassCol) colDef.hide = false;
+      });
+      gridOptions.api.setColumnDefs(colDefs);
+      gridOptions.api.startEditingCell({rowIndex: event.rowIndex, colKey: clickedClassCol});
     }
 
     function getAllParents(node) {
@@ -524,6 +626,32 @@
       return allGroupedFields;
     }
 
+    function finishedEdit(event) {
+      var colDefs = gridOptions.api.getColumnDefs();
+      colDefs.forEach(function(colDef, index) {
+        if (colDef.field === undefined) return;
+        if (colDef.field.includes("_class")) colDef.hide = true;
+      });
+      gridOptions.api.setColumnDefs(colDefs);
+
+      var clickedData = event.node.data[event.colDef.field.substring(0, 3)];
+      if (event.oldValue != event.newValue) {
+        var changedData = [];
+        gridOptions.api.forEachNode(node => {
+          if (node.data === undefined) return;
+          var d = node.data;
+          if ([d.src, d.cur, d.dst].includes(clickedData)) {
+            if (d.src == clickedData) d.src_class = event.newValue;
+            if (d.cur == clickedData) d.cur_class = event.newValue;
+            if (d.dst == clickedData) d.dst_class = event.newValue;
+            changedData.push(d)
+          }
+        });
+        gridOptions.api.applyTransaction({ update: changedData });
+        gridOptions.api.clearFocusedCell();
+      }
+    }
+
     // ************* Initialization ************* //
 
     // lookup the container we want the Grid to use
@@ -532,6 +660,6 @@
     // create the grid passing in the div to use together with the columns & data we want to use
     new agGrid.Grid(eGridDiv, gridOptions);
 
-  </script>
+    </script>
 </body>
 </html>
