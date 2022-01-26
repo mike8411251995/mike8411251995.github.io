@@ -1,6 +1,6 @@
 /************************* AGgrid Cell Styles *************************/
 
-.center, .current, .red {
+.center, .cur, .src, .dst, .red {
   display: flex!important;
   justify-content: center;
   align-items: center;
@@ -12,8 +12,16 @@
   align-items: center;
 }
 
-.current {
+.cur {
   background-color: lightgreen;
+}
+
+.src {
+  background-color: rgb(141, 203, 228);
+}
+
+.dst {
+  background-color: rgb(175, 155, 219);
 }
 
 .red {

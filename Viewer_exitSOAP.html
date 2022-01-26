@@ -137,18 +137,18 @@
       { headerName: "#", field: "#", width: 90, checkboxSelection: true, tooltipComponent: false },
       { headerName: "Flow", field: "seqs", width: 100, cellRenderer: "seqRenderer", editable: false, tooltipComponent: false },
 
-      { headerName: "前一畫面", field: "src", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max" },
+      { headerName: "前一畫面 (圖)", field: "src", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max", cellClass: "src" },
       { headerName: "🡺", field: "prev", width: 70, cellRenderer: "linkRenderer" },
 
-      { headerName: "當前畫面", field: "cur", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max", cellClass: "current", editable: false },
+      { headerName: "當前畫面 (圖)", field: "cur", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max", cellClass: "cur", editable: false },
 
       { headerName: "🡺", field: "next", width: 70, cellRenderer: "linkRenderer" },
-      { headerName: "後一畫面", field: "dst", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max" },
+      { headerName: "後一畫面 (圖)", field: "dst", width: 270, cellRenderer: "nodeRenderer", aggFunc: "max", cellClass: "dst" },
 
-      { headerName: "當前畫面", field: "cur_class", hide: true, rowGroup: true, editable: false, cellRenderer: "classRenderer" },
-      { headerName: "前一畫面", field: "src_class", hide: true, editable: false, cellRenderer: "classRenderer" },
-      { headerName: "後一畫面", field: "dst_class", hide: true, editable: false, cellRenderer: "classRenderer" },
-      { headerName: "前一畫面🡺當前畫面🡺後一畫面", field: "src_cur_dst", hide: true, cellRenderer: "classRenderer", editable: false },
+      { headerName: "當前畫面", field: "cur_class", hide: true, editable: true, cellRenderer: "classRenderer", rowGroup: true },
+      { headerName: "前一畫面", field: "src_class", hide: true, editable: true, cellRenderer: "classRenderer" },
+      { headerName: "後一畫面", field: "dst_class", hide: true, editable: true, cellRenderer: "classRenderer" },
+      { headerName: "前一畫面🡺當前畫面🡺後一畫面", field: "src_cur_dst", hide: true, editable: true, cellRenderer: "classRenderer" },
 
       { headerName: "按鈕", width: 50, pinned: "right", cellRenderer: "actionRenderer", cellClass: "red" },
     ];
@@ -178,7 +178,12 @@
     };
 
     const nodeRenderer = (params) => {
-      var value = params.value
+      if (params.node.group) {
+        var allParents = getAllParents(params.node);
+        if (!allParents.includes(params.colDef.field)) return null;
+      }
+
+      var value = params.value;
       if (value == "-2") { return specialCell(-2); }
       if (value == null) { return null; }
       if (value < 0) { return specialCell(value); }
@@ -246,6 +251,7 @@
     };
 
     const classRenderer = (params) => {
+      if (params.value === undefined) return null;
       if (params.value.includes(",")) {
         var src = params.value.split(",")[0]
         var cur = "<span style='color:green'>" + params.value.split(",")[1] + "</span>"
@@ -253,7 +259,12 @@
         return [src, cur, dst].join(" 🡺 ")
       }
       else {
-        return "<b style='color:green'>" + params.value + "</b>"
+        color = {
+          "src_class": "blue",
+          "cur_class": "green",
+          "dst_class": "purple"
+        }[params.node.field]
+        return "<b style='color:" + color + "'>" + params.value + "</b>"
       }
     };
 
@@ -315,6 +326,7 @@
       undoRedoCellEditing: true,
       undoRedoCellEditingLimit: 50,
       tooltipMouseTrack: true,
+      onCellDoubleClicked: (event) => doubleClickEdit(event),
     };
 
     // ************* Helper Functions ************* //
@@ -373,15 +385,6 @@
           gridApi.stopEditing();
         });
       }
-    }
-
-    function autoSizeAll(skipHeader) {
-      const allColumnIds = [];
-      gridOptions.columnApi.getAllColumns().forEach((column) => {
-        allColumnIds.push(column.colId);
-      });
-      console.log(gridOptions.columnApi.getRowGroupColumns())
-      gridOptions.columnApi.autoSizeColumns(allColumnIds, skipHeader);
     }
 
     function expandFirstLevel() {
@@ -481,6 +484,44 @@
         if (type + "_class" == colDef.field) colDef.rowGroup = !colDef.rowGroup;
       });
       gridOptions.api.setColumnDefs(colDefs);
+    }
+
+    function doubleClickEdit(event) {
+      if (event.node.group) return;
+      if (!event.colDef.headerName.includes("(圖)")) return;
+
+      var clickedCol = event.colDef.field;
+      var clickedClassCol = clickedCol + "_class";
+      var clickedData = event.node.data[clickedCol];
+      var clickedClass = event.node.data[clickedClassCol];
+      if (clickedData == -1) return;
+
+      let newClass = prompt("Changing class of image to", clickedClass);
+      if (newClass != null && newClass != clickedClass) {
+        var changedData = [];
+        gridOptions.api.forEachNode(node => {
+          if (node.data === undefined) return;
+          var d = node.data;
+          if ([d.src, d.cur, d.dst].includes(clickedData)) {
+            if (d.src == clickedData) d.src_class = newClass;
+            if (d.cur == clickedData) d.cur_class = newClass;
+            if (d.dst == clickedData) d.dst_class = newClass;
+            changedData.push(d)
+          }
+        });
+        gridOptions.api.applyTransaction({ update: changedData });
+        gridOptions.api.clearFocusedCell();
+      }
+    }
+
+    function getAllParents(node) {
+      var var_node = node;
+      var allGroupedFields = [var_node.field.substring(0, 3)];
+      while (var_node.parent.rowIndex != null) {
+        var_node = var_node.parent;
+        allGroupedFields.push(var_node.field.substring(0, 3));
+      }
+      return allGroupedFields;
     }
 
     // ************* Initialization ************* //
