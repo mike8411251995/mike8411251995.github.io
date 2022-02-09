@@ -1,4 +1,0 @@
-var None = -1;
-var False = false;
-
-data_ = [{'src': None, 'dst': 3, 'prev': None, 'next': '666666', 'seqs': ['20220208_lee_raw_login_seq00'], 'unique': 'CS 5.0', 'id': 2}, {'src': 2, 'dst': 4, 'prev': '666666', 'next': [3, 4], 'seqs': ['20220208_lee_raw_login_seq00'], 'unique': 'CS 5.0', 'id': 3}, {'src': 3, 'dst': 5, 'prev': [3, 4], 'next': [4, 5], 'seqs': ['20220208_lee_raw_login_seq00'], 'unique': '醫師排班記錄', 'id': 4}, {'src': 4, 'dst': 6, 'prev': [4, 5], 'next': [5, 6], 'seqs': ['20220208_lee_raw_login_seq00'], 'unique': 'CC_Patients', 'id': 5}, {'src': 5, 'dst': 7, 'prev': [5, 6], 'next': [6, 7], 'seqs': ['20220208_lee_raw_login_seq00'], 'unique': 'CC_Patients', 'id': 6}, {'src': 6, 'dst': None, 'prev': [6, 7], 'next': None, 'seqs': ['20220208_lee_raw_login_seq00'], 'unique': 'CC_Patients', 'id': 7}]
