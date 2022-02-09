@@ -3,7 +3,7 @@
 <head>
   <title>Viewer (exitSOAP)</title>
   <script src="https://unpkg.com/ag-grid-enterprise/dist/ag-grid-enterprise.min.noStyle.js"
-          integrity="sha384-DEQdyWEjh/o0F7sUFf+iRK/5fpAaRagfs95IjczaKEivNFffajk6vjQSWn997IRP"
+          integrity="sha384-rYc90S/Gd/ohsTdjEGVKEdLbp2tzt6S/oDS53XrWreE0K3ZxUakDa1t1muZW7+Ds"
           crossorigin="anonymous"></script>
   <script type="text/javascript" charset="UTF-8" src="data_exitSOAP.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/ag-grid-community/dist/styles/ag-grid.css">
@@ -18,11 +18,13 @@
       <label class="switch" style="float: right;">
         <input onclick="toggleMode()" type="checkbox" id="togBtn">
         <div class="mode-slider round">
-         <span class="on">唯讀模式</span><span class="off">編輯模式</span>
+          <span class="on">唯讀模式</span><span class="off">編輯模式</span>
         </div>
       </label>
+      <div style="float: right;">　</div>
+      <button onclick="editMultipleCells()" style="float: right;">✎</button>
       <div>
-        <span class="text-title">🎦 記錄檔名 </span><span class="text-content">20220125_lee</span>　　　　
+        <span class="text-title">🎦 記錄檔名 </span><span class="text-content">20220208_lee_raw</span>　　　　
         <span class="text-title">🔃 分段規則 </span><span class="text-content">exitSOAP</span>
       </div>
     </div>
@@ -91,9 +93,10 @@
     class CustomTooltip {
       init(params) {
         const eGui = (this.eGui = document.createElement("div"));
-        const value = params.value.value
-        if (typeof value === "undefined" || value < 0) return;
-        if (typeof value === "string" || value instanceof String) return;
+        const value = params.value.value;
+        if (params.node.group ||
+            value === undefined || value < 0 ||
+            typeof value === "string" || value instanceof String) return;
 
         eGui.classList.add("custom-tooltip");
         const imageElement = document.createElement("img");
@@ -178,7 +181,7 @@
         cellRenderer: "nodeRenderer",
         aggFunc: "max",
         cellClass: "cur",
-        editable: false
+        editable: true,
       },
       {
         headerName: "當前畫面",
@@ -371,7 +374,7 @@
       rowData: data,
       animateRows: true,
       defaultColDef: {
-        suppressKeyboardEvent: clearSelected,
+        suppressKeyboardEvent: suppressKeyboardEvent,
         suppressMovable: true,
         suppressColumnsToolPanel: true,
         editable: true,
@@ -430,21 +433,14 @@
       tooltipMouseTrack: true,
       onCellDoubleClicked: (event) => doubleClickEdit(event),
       onCellEditingStopped: (event) => finishedEdit(event),
+      onCellEditingStarted: (event) => console.log(event),
     };
 
     // ************* Helper Functions ************* //
 
     function pad(num, size) { return ("000000" + num).substr(-size); }
 
-    function getFirstNotDeleted(array) {
-      if (!array.includes("-2") && !array.includes(-2)) return array[0];
-      for (let i = 0; i < array.length; i++) {
-        if (!(array[i] == "-2") && !(array[i] == -2)) return array[i];
-      }
-      return -1;
-    }
-
-    function clearSelected(params) {
+    function suppressKeyboardEvent(params) {
       let isEnterKey = params.event.keyCode === 13;
       let isBackspaceKey = params.event.keyCode === 8;
       let isDeleteKey = params.event.keyCode === 46;
@@ -461,66 +457,17 @@
           params.api.applyTransaction({ remove: selectedRows });
           return true;
         }
-
-        if (isDeleteKey) { // Deletes selected cells
-          params.api.getCellRanges().forEach(range => {
-            let colIds = range.columns.map(col => col.colId);
-
-            let startRowIndex = Math.min(
-              range.startRow.rowIndex,
-              range.endRow.rowIndex
-            );
-            let endRowIndex = Math.max(
-              range.startRow.rowIndex,
-              range.endRow.rowIndex
-            );
-
-            clearCells(startRowIndex, endRowIndex, colIds, params.api);
-          });
-          return true;
-        }
       }
       return false;
     }
 
-    function clearCells(start, end, columns, gridApi) {
-      let itemsToUpdate = [];
-
-      for (let i = start; i <= end; i++) {
-        let data = gridApi.rowModel.rowsToDisplay[i].data;
-        columns.forEach(column => {
-          if (["#", "cur", "seqs", "ag-Grid-AutoColumn"].includes(column)) return;
-          if (data[column] == -1) return;
-          gridApi.startEditingCell({rowIndex: i, colKey: column, charPress: "-2"});
-          gridApi.stopEditing();
-        });
-      }
-    }
-
-    function expandFirstLevel() {
-      gridOptions.api.forEachNode((node) => {
-        if (node.level === 0) {
-          node.setExpanded(true);
-        }
-      });
-    }
-
-    function collapseFirstLevel() {
-      gridOptions.api.forEachNode((node) => {
-        if (node.level === 0) {
-          node.setExpanded(false);
-        }
-      });
+    function toggleFirstLevel(expand) {
+      // expand == true -> setExpanded(true);
+      // expand == false -> setExpanded(false);
+      gridOptions.api.forEachNode((node) => { if (node.level === 0) { node.setExpanded(expand); } });
     }
 
     function toggleMode() {
-      const colsToHide = [
-        "src2", "src3", "src4", "src5",
-        "prev2", "prev3", "prev4", "prev5",
-        "dst2", "dst3", "dst4", "dst5",
-        "next2", "next3", "next4", "next5",
-      ];
-
       if (!editMode) {
         gridOptions.api.setColumnDefs([]);
         gridOptions.api.setColumnDefs(columnDefs);
@@ -530,30 +477,15 @@
 
       else {
         // Save current data for later edit
-        tempData = getAllRows();
-
-        // Replace manually deleted links
-        gridOptions.api.forEachNode((node, index) => {
-          updateDeletedLinks(node, index);
-        });
+        tempData = getAllRowData();
 
         // Update column definitions to read-only mode
         var colDefs = gridOptions.api.getColumnDefs();
         colDefs.forEach(function(colDef, index) {
-          // console.log(colDef.headerName)
-          if (colDef.children !== undefined) {
-            for (let i = 0; i < colDef.children.length; i++) {
-              if (colsToHide.includes(colDef.children[i].field)) colDef.children[i].hide = true;
-              colDef.children[i].editable = false;
-              colDef.children[i].suppressKeyboardEvent = false;
-              colDef.children[i].checkboxSelection = false;
-            }
-          }
-          else {
-            colDef.editable = false;
-            colDef.suppressKeyboardEvent = false;
-            colDef.checkboxSelection = false;
-          }
+          colDef.editable = false;
+          colDef.suppressKeyboardEvent = false;
+          colDef.onCellDoubleClicked = null;
+          colDef.checkboxSelection = false;
         });
         gridOptions.api.setColumnDefs(colDefs);
 
@@ -567,33 +499,11 @@
       }
     }
 
-    function updateDeletedLinks(node, index) {
-      if (!node.group) {
-        var srcs = [node.data.src, node.data.src2, node.data.src3, node.data.src4, node.data.src5];
-        var prevs = [node.data.prev, node.data.prev2, node.data.prev3, node.data.prev4, node.data.prev5];
-        var dsts = [node.data.dst, node.data.dst2, node.data.dst3, node.data.dst4, node.data.dst5];
-        var nexts = [node.data.next, node.data.next2, node.data.next3, node.data.next4, node.data.next5];
-
-        node.setDataValue("src", getFirstNotDeleted(srcs))
-        node.setDataValue("prev", getFirstNotDeleted(prevs))
-        node.setDataValue("dst", getFirstNotDeleted(dsts))
-        node.setDataValue("next", getFirstNotDeleted(nexts))
-      }
-    }
-
-    function getAllRows() {
+    function getAllRowData() {
       let rowData = [];
       gridOptions.api.forEachNode(node => rowData.push(node.data));
       rowData = rowData.filter(x => x !== undefined);
       return JSON.parse(JSON.stringify(rowData));
-    }
-
-    function toggleGrouping(type) {
-      var colDefs = gridOptions.api.getColumnDefs();
-      colDefs.forEach(function(colDef, index) {
-        if (type + "_class" == colDef.field) colDef.rowGroup = !colDef.rowGroup;
-      });
-      gridOptions.api.setColumnDefs(colDefs);
     }
 
     function doubleClickEdit(event) {
@@ -626,13 +536,17 @@
       return allGroupedFields;
     }
 
-    function finishedEdit(event) {
+    function toggleHideClassCols(hide) {
       var colDefs = gridOptions.api.getColumnDefs();
       colDefs.forEach(function(colDef, index) {
         if (colDef.field === undefined) return;
-        if (colDef.field.includes("_class")) colDef.hide = true;
+        if (colDef.field.includes("_class")) colDef.hide = hide;
       });
       gridOptions.api.setColumnDefs(colDefs);
+    }
+
+    function finishedEdit(event) {
+      toggleHideClassCols(true);
 
       var clickedData = event.node.data[event.colDef.field.substring(0, 3)];
       if (event.oldValue != event.newValue) {
@@ -650,6 +564,91 @@
         gridOptions.api.applyTransaction({ update: changedData });
         gridOptions.api.clearFocusedCell();
       }
+    }
+
+    function editMultipleCells() {
+      const cellRanges = gridOptions.api.getCellRanges();
+      if (cellRanges.length == 0) return;
+
+      // function containsEditable(ranges) {
+      //   ranges.forEach(range => {
+      //     let colIds = range.columns.map(col => col.colId);
+
+      //     let startRowIndex = Math.min(
+      //       range.startRow.rowIndex,
+      //       range.endRow.rowIndex
+      //     );
+      //     let endRowIndex = Math.max(
+      //       range.startRow.rowIndex,
+      //       range.endRow.rowIndex
+      //     );
+
+      //     for (let i = startRowIndex; i <= endRowIndex; i++) {
+      //       if (gridOptions.api.rowModel.rowsToDisplay[i].group) continue;
+      //       let data = gridOptions.api.rowModel.rowsToDisplay[i].data;
+      //       colIds.forEach(column => {
+      //         if (["cur", "src", "dst"].includes(column)) return true;
+      //         if (data[column] == -1) return;
+      //         console.log(data[column + "_class"])
+
+      //         var clickedData = data[column];
+      //         gridOptions.api.forEachNode(node => {
+      //           if (node.data === undefined) return;
+      //           var d = node.data;
+      //           if ([d.src, d.cur, d.dst].includes(clickedData)) {
+      //             if (d.src == clickedData) d.src_class = target;
+      //             if (d.cur == clickedData) d.cur_class = target;
+      //             if (d.dst == clickedData) d.dst_class = target;
+      //             changedData.push(d)
+      //           }
+      //         });
+      //       });
+      //     }
+      //   });
+
+      // }
+
+      var changedData = [];
+      let target = prompt("修改選取畫面的類別為", "");
+
+      cellRanges.forEach(range => {
+        let colIds = range.columns.map(col => col.colId);
+
+        let startRowIndex = Math.min(
+          range.startRow.rowIndex,
+          range.endRow.rowIndex
+        );
+        let endRowIndex = Math.max(
+          range.startRow.rowIndex,
+          range.endRow.rowIndex
+        );
+
+        for (let i = startRowIndex; i <= endRowIndex; i++) {
+          if (gridOptions.api.rowModel.rowsToDisplay[i].group) continue;
+          let data = gridOptions.api.rowModel.rowsToDisplay[i].data;
+          colIds.forEach(column => {
+            if (!["cur", "src", "dst"].includes(column)) return;
+            if (data[column] == -1) return;
+            console.log(data[column + "_class"])
+
+            var clickedData = data[column];
+            gridOptions.api.forEachNode(node => {
+              if (node.data === undefined) return;
+              var d = node.data;
+              if ([d.src, d.cur, d.dst].includes(clickedData)) {
+                if (d.src == clickedData) d.src_class = target;
+                if (d.cur == clickedData) d.cur_class = target;
+                if (d.dst == clickedData) d.dst_class = target;
+                changedData.push(d)
+              }
+            });
+          });
+        }
+      });
+
+      gridOptions.api.applyTransaction({ update: changedData });
+      gridOptions.api.clearFocusedCell();
+
     }
 
     // ************* Initialization ************* //

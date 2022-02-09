@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" style="margin: 0px; height: 98%">
+<head>
+  <title>Viewer (full)</title>
+  <script src="https://unpkg.com/ag-grid-enterprise/dist/ag-grid-enterprise.min.noStyle.js"
+          integrity="sha384-rYc90S/Gd/ohsTdjEGVKEdLbp2tzt6S/oDS53XrWreE0K3ZxUakDa1t1muZW7+Ds"
+          crossorigin="anonymous"></script>
+  <script type="text/javascript" charset="UTF-8" src="data_full.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/ag-grid-community/dist/styles/ag-grid.css">
+  <link rel="stylesheet" href="https://unpkg.com/ag-grid-community/dist/styles/ag-theme-balham.css">
+  <link rel="stylesheet" href="AGgrid.css">
+</head>
+<body style="margin: 10px; height: 100%">
+  <div class="example-wrapper">
+    <div style="margin-bottom: 5px;">
+      <!-- <button onclick="expandFirstLevel()" style="float: right;">全部展開</button> -->
+      <!-- <button onclick="collapseFirstLevel()" style="float: right;">全部收合</button> -->
+      <label class="switch" style="float: right;">
+        <input onclick="toggleMode()" type="checkbox" id="togBtn">
+        <div class="mode-slider round">
+          <span class="on">唯讀模式</span><span class="off">編輯模式</span>
+        </div>
+      </label>
+      <div style="float: right;">　</div>
+      <button onclick="editMultipleCells()" style="float: right;">✎</button>
+      <div>
+        <span class="text-title">🎦 記錄檔名 </span><span class="text-content">20220208_lee_raw</span>　　　　
+        <span class="text-title">🔃 分段規則 </span><span class="text-content">full</span>
+      </div>
+    </div>
+    <div id="myGrid" class="ag-theme-balham">
+    </div>
+  </div>
+
+  <script type="text/javascript" charset="utf-8">
+
+    // ************* Edit/Read-Only Mode ************* //
+
+    var editMode = true;
+    var tempData = null;
+
+    // ************* Data Preparation ************* //
+
+    // get external data
+    const idDict = {};
+    idDict[-1] = { class: "❌", src: -1, prev: -1, dst: -1, next: -1 };
+    data_.forEach(element => {
+      idDict[element.id] = {
+        class: element.unique,
+        src: element.src,
+        prev: element.prev,
+        dst: element.dst,
+        next: element.next,
+      };
+      element["#"] = element.id;
+      element.cur = element.id;
+      element.cur_class = element.unique;
+    }); // idDict[id] = information dictionary
+
+    function getNeighborNode(curId, n, front) {
+      var target = curId;
+      if (front) { for (let i = 0; i < n; i++) { target = idDict[target].dst; } }
+      else { for (let i = 0; i < n; i++) { target = idDict[target].src; } };
+      return target;
+    }
+
+    function getNeighborLink(curId, n, front) {
+      var target = curId;
+      if (front) { for (let i = 0; i < n; i++) { target = idDict[target].dst; } }
+      else { for (let i = 0; i < n; i++) { target = idDict[target].src; } };
+      if (front) { return idDict[target].prev; }
+      else { return idDict[target].next; };
+    }
+
+    data_.forEach(element => {
+      var src_class, dst_class;
+      element.src_class = idDict[element.src].class;
+      element.dst_class = idDict[element.dst].class;
+      element.src_cur_dst = idDict[element.src].class + "," + element.cur_class + "," + idDict[element.dst].class;
+      for (let j = 2; j <= 5; j++) {
+        element["src" + j] = getNeighborNode(element.cur, j, false);
+        element["prev" + j] = getNeighborLink(element.cur, j, false);
+        element["dst" + j] = getNeighborNode(element.cur, j, true);
+        element["next" + j] = getNeighborLink(element.cur, j, true);
+      }
+    })
+    const data = data_
+
+    // ************* Tooltip Class ************* //
+
+    const toolTipValueGetter = (params) => ({ value: params.value });
+
+    class CustomTooltip {
+      init(params) {
+        const eGui = (this.eGui = document.createElement("div"));
+        const value = params.value.value;
+        if (params.node.group ||
+            value === undefined || value < 0 ||
+            typeof value === "string" || value instanceof String) return;
+
+        eGui.classList.add("custom-tooltip");
+        const imageElement = document.createElement("img");
+        if (value instanceof Array) {
+          const link = "f" + pad(value[0], 6) + "-f" + pad(value[1], 6);
+          imageElement.src = "imgs/links/" + link + "_full.png";
+        }
+        else {
+          const img_id = pad(value, 6)
+          imageElement.src = "imgs/nodes/f" + img_id + "_full.png";
+        }
+        imageElement.style.maxHeight = "540px";
+        imageElement.style.maxWidth = "960px";
+        imageElement.style.height = "auto";
+        imageElement.style.width = "auto";
+        eGui.appendChild(imageElement);
+      }
+
+      getGui() {
+        return this.eGui;
+      }
+    }
+
+    // ************* Column Definitions ************* //
+
+    const columnDefs = [
+      /* MISC */
+      {
+        headerName: "#",
+        field: "#",
+        width: 90,
+        checkboxSelection: true,
+        tooltipComponent: false
+      },
+      {
+        headerName: "Flow",
+        field: "seqs",
+        width: 100,
+        cellRenderer: "seqRenderer",
+        editable: false,
+        tooltipComponent: false
+      },
+      {
+        headerName: "按鈕",
+        width: 50,
+        pinned: "right",
+        cellRenderer: "actionRenderer",
+        cellClass: "red"
+      },
+      /* SRC */
+      {
+        headerName: "前一畫面 (圖)",
+        field: "src",
+        width: 270,
+        cellRenderer: "nodeRenderer",
+        aggFunc: "max",
+        cellClass: "src"
+      },
+      {
+        headerName: "前一畫面",
+        field: "src_class",
+        filter: true,
+        hide: true,
+        editable: true,
+        cellRenderer: "classRenderer",
+        cellClass: "src",
+        enableRowGroup: true,
+        toolPanelClass: ['tp-blue'],
+        suppressColumnsToolPanel: false,
+      },
+      {
+        headerName: "🡺",
+        field: "prev",
+        width: 70,
+        cellRenderer: "linkRenderer"
+      },
+      /* CUR */
+      {
+        headerName: "當前畫面 (圖)",
+        field: "cur",
+        width: 270,
+        cellRenderer: "nodeRenderer",
+        aggFunc: "max",
+        cellClass: "cur",
+        editable: true,
+      },
+      {
+        headerName: "當前畫面",
+        field: "cur_class",
+        filter: true,
+        hide: true,
+        editable: true,
+        cellRenderer: "classRenderer",
+        cellClass: "cur",
+        enableRowGroup: true,
+        toolPanelClass: ['tp-green'],
+        suppressColumnsToolPanel: false,
+        rowGroup: true
+      },
+      /* DST */
+      {
+        headerName: "🡺",
+        field: "next",
+        width: 70,
+        cellRenderer: "linkRenderer"
+      },
+      {
+        headerName: "後一畫面 (圖)",
+        field: "dst",
+        width: 270,
+        cellRenderer: "nodeRenderer",
+        aggFunc: "max",
+        cellClass: "dst"
+      },
+      {
+        headerName: "後一畫面",
+        field: "dst_class",
+        filter: true,
+        hide: true,
+        editable: true,
+        cellRenderer: "classRenderer",
+        cellClass: "dst",
+        enableRowGroup: true,
+        toolPanelClass: ['tp-purple'],
+        suppressColumnsToolPanel: false,
+      },
+    ];
+
+    // row grouping
+    const autoGroupColumnDef = {
+      width: 300,
+      headerName: "類別",
+      cellRenderer: "agGroupCellRenderer",
+      cellClass: "left",
+    }
+
+    // ************* Cell Renderers ************* //
+
+    const specialCell = (value) => {
+      const resultElement = document.createElement("span");
+      const imageElement = document.createElement("img");
+
+      if (value == -1) imageElement.src = "imgs/blank_icon.png";
+      else if (value == -2) imageElement.src = "imgs/trash_icon.png";
+      imageElement.style.maxHeight = "30px";
+      imageElement.style.maxWidth = "30px";
+      imageElement.style.height = "auto";
+      imageElement.style.width = "auto";
+      resultElement.appendChild(imageElement);
+      return resultElement;
+    };
+
+    const nodeRenderer = (params) => {
+      if (params.node.group) {
+        var allParents = getAllParents(params.node);
+        if (!allParents.includes(params.colDef.field)) return null;
+      }
+
+      var value = params.value;
+      if (value == "-2") { return specialCell(-2); }
+      if (value == null) { return null; }
+      if (value < 0) { return specialCell(value); }
+      const resultElement = document.createElement("span");
+      const imageElement = document.createElement("img");
+      const img_id = pad(value, 6)
+      imageElement.src = "imgs/nodes/f" + img_id + "_node.png";
+      imageElement.style.maxHeight = "144px";
+      imageElement.style.maxWidth = "256px";
+      imageElement.style.height = "auto";
+      imageElement.style.width = "auto";
+      imageElement.addEventListener("click", function (e) {
+        window.open("imgs/nodes/f" + img_id + "_full.png");
+      });
+      imageElement.title = "f" + img_id;
+      resultElement.appendChild(imageElement);
+      return resultElement;
+    };
+
+    const linkRenderer = (params) => {
+      var value = params.value
+      if (value == "-2") { return specialCell(-2); }
+      if (typeof value === "string") { return value; }
+      if (value == null) { return null; }
+      if (value < 0) { return specialCell(value); }
+
+      const link = "f" + pad(value[0], 6) + "-f" + pad(value[1], 6);
+
+      const resultElement = document.createElement("span");
+      const imageElement = document.createElement("img");
+
+      imageElement.src = "imgs/links/" + link + "_crop.png";
+      imageElement.style.maxHeight = "15px";
+      imageElement.style.maxWidth = "57px";
+      imageElement.style.height = "auto";
+      imageElement.style.width = "auto";
+      imageElement.addEventListener("click", function (e) {
+        window.open("imgs/links/" + link + "_full.png");
+      });
+      imageElement.title = link;
+      resultElement.appendChild(imageElement);
+      return resultElement;
+    };
+
+    const seqRenderer = (params) => {
+      if (params.value == null || params.value == -1) { return null; }
+      const resultElement = document.createElement("span");
+      for (let i = 0; i < params.value.length; i++) {
+        if (params.value[i].includes("_all")) { continue; }
+        const imageElement = document.createElement("img");
+        imageElement.src = "imgs/flow_icon.png";
+        imageElement.style.height = "40px";
+        imageElement.style.width = "40px";
+        imageElement.addEventListener("click", function (e) {
+          window.open(params.value[i] + ".html?" + pad(params.data.cur, 6));
+        });
+        imageElement.title = params.value[i]
+        resultElement.appendChild(imageElement);
+
+        if (i != params.value.length - 1) {
+          resultElement.appendChild(document.createElement("br"));
+        }
+      }
+      return resultElement;
+    };
+
+    const classRenderer = (params) => {
+      if (params.value === undefined) return null;
+      if (params.value.includes(",")) {
+        var src = params.value.split(",")[0]
+        var cur = "<span style='color:green'>" + params.value.split(",")[1] + "</span>"
+        var dst = params.value.split(",")[2]
+        return [src, cur, dst].join(" 🡺 ")
+      }
+      else {
+        var colField = params.node.field;
+        if (colField === undefined) colField = params.colDef.field;
+        color = {
+          "src_class": "blue",
+          "cur_class": "green",
+          "dst_class": "purple"
+        }[colField]
+        return "<b style='color:" + color + "'>" + params.value + "</b>"
+      }
+    };
+
+    const actionRenderer = (params) => {
+      const resultElement = document.createElement("span");
+      const imageElement = document.createElement("img");
+
+      imageElement.src = "imgs/trash_icon_white.png";
+      imageElement.style.maxHeight = "30px";
+      imageElement.style.maxWidth = "30px";
+      imageElement.style.height = "auto";
+      imageElement.style.width = "auto";
+      imageElement.addEventListener("click", function (e) {
+        const currentRow = params.node.data;
+        params.api.applyTransaction({ remove: [currentRow] });
+      });
+      resultElement.appendChild(imageElement);
+      return resultElement;
+    };
+
+    // ************* Grid Options ************* //
+
+    const gridOptions = {
+      components: {
+        nodeRenderer: nodeRenderer,
+        linkRenderer: linkRenderer,
+        seqRenderer: seqRenderer,
+        classRenderer: classRenderer,
+        actionRenderer: actionRenderer,
+        customTooltip: CustomTooltip,
+      },
+      rowHeight: 170,
+      rowData: data,
+      animateRows: true,
+      defaultColDef: {
+        suppressKeyboardEvent: suppressKeyboardEvent,
+        suppressMovable: true,
+        suppressColumnsToolPanel: true,
+        editable: true,
+        sortable: true,
+        filter: false,
+        resizable: true,
+        wrapText: true,
+        enableRowGroup: false,
+        lockVisible: true,
+        cellClass: "center",
+        tooltipComponent: "customTooltip",
+        tooltipValueGetter: toolTipValueGetter,
+      },
+      sideBar: {
+        toolPanels: [
+          {
+            id: "filters",
+            labelDefault: "篩選",
+            labelKey: "filters",
+            iconKey: "filter",
+            toolPanel: "agFiltersToolPanel",
+          },
+          {
+            id: "columns",
+            labelDefault: "群組",
+            labelKey: "columns",
+            iconKey: "columns",
+            toolPanel: "agColumnsToolPanel",
+            toolPanelParams: {
+              suppressValues: true,
+              suppressPivots: true,
+              suppressPivotMode: true,
+              suppressColumnFilter: true,
+              suppressColumnSelectAll: true,
+              suppressColumnExpandAll: true,
+            },
+          },
+        ],
+        defaultToolPanel: "filters",
+      },
+      tooltipShowDelay: 500,
+      columnDefs: columnDefs,
+      rowGroupPanelShow: false,
+      enableGroupEdit: false,
+      suppressDragLeaveHidesColumns: true,
+      suppressMakeColumnVisibleAfterUnGroup: true,
+      autoGroupColumnDef: autoGroupColumnDef,
+      groupSelectsChildren: true,
+      rowSelection: "multiple",
+      suppressAggFuncInHeader: true,
+      enableRangeSelection: true,
+      suppressRowClickSelection: true,
+      suppressClickEdit: true,
+      undoRedoCellEditing: true,
+      undoRedoCellEditingLimit: 50,
+      tooltipMouseTrack: true,
+      onCellDoubleClicked: (event) => doubleClickEdit(event),
+      onCellEditingStopped: (event) => finishedEdit(event),
+      onCellEditingStarted: (event) => console.log(event),
+    };
+
+    // ************* Helper Functions ************* //
+
+    function pad(num, size) { return ("000000" + num).substr(-size); }
+
+    function suppressKeyboardEvent(params) {
+      let isEnterKey = params.event.keyCode === 13;
+      let isBackspaceKey = params.event.keyCode === 8;
+      let isDeleteKey = params.event.keyCode === 46;
+      let isEscKey = params.event.keyCode === 27;
+
+      if (params.editing && (isEscKey || isEnterKey)) {
+        gridOptions.api.stopEditing();
+        return true;
+      }
+
+      if (!params.editing) {
+        if (isBackspaceKey || isDeleteKey) { // Deletes entire rows
+          const selectedRows = params.api.getSelectedRows();
+          params.api.applyTransaction({ remove: selectedRows });
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function toggleFirstLevel(expand) {
+      // expand == true -> setExpanded(true);
+      // expand == false -> setExpanded(false);
+      gridOptions.api.forEachNode((node) => { if (node.level === 0) { node.setExpanded(expand); } });
+    }
+
+    function toggleMode() {
+      if (!editMode) {
+        gridOptions.api.setColumnDefs([]);
+        gridOptions.api.setColumnDefs(columnDefs);
+        editMode = true;
+        gridOptions.api.setRowData(tempData);
+      }
+
+      else {
+        // Save current data for later edit
+        tempData = getAllRowData();
+
+        // Update column definitions to read-only mode
+        var colDefs = gridOptions.api.getColumnDefs();
+        colDefs.forEach(function(colDef, index) {
+          colDef.editable = false;
+          colDef.suppressKeyboardEvent = false;
+          colDef.onCellDoubleClicked = null;
+          colDef.checkboxSelection = false;
+        });
+        gridOptions.api.setColumnDefs(colDefs);
+
+        // Export to CSV
+        gridOptions.api.exportDataAsCsv({
+          skipRowGroups: true,
+          allColumns: true,
+        });
+
+        editMode = false;
+      }
+    }
+
+    function getAllRowData() {
+      let rowData = [];
+      gridOptions.api.forEachNode(node => rowData.push(node.data));
+      rowData = rowData.filter(x => x !== undefined);
+      return JSON.parse(JSON.stringify(rowData));
+    }
+
+    function doubleClickEdit(event) {
+      if (!event.colDef.headerName.includes("(圖)")) return;
+      if (event.node.group) {
+        alert("群組列不可編輯！");
+        return;
+      }
+
+      var clickedCol = event.colDef.field;
+      var clickedClassCol = clickedCol + "_class";
+      var clickedData = event.node.data[clickedCol];
+      if (clickedData == -1) return;
+
+      var colDefs = gridOptions.api.getColumnDefs();
+      colDefs.forEach(function(colDef, index) {
+        if (colDef.field == clickedClassCol) colDef.hide = false;
+      });
+      gridOptions.api.setColumnDefs(colDefs);
+      gridOptions.api.startEditingCell({rowIndex: event.rowIndex, colKey: clickedClassCol});
+    }
+
+    function getAllParents(node) {
+      var var_node = node;
+      var allGroupedFields = [var_node.field.substring(0, 3)];
+      while (var_node.parent.rowIndex != null) {
+        var_node = var_node.parent;
+        allGroupedFields.push(var_node.field.substring(0, 3));
+      }
+      return allGroupedFields;
+    }
+
+    function toggleHideClassCols(hide) {
+      var colDefs = gridOptions.api.getColumnDefs();
+      colDefs.forEach(function(colDef, index) {
+        if (colDef.field === undefined) return;
+        if (colDef.field.includes("_class")) colDef.hide = hide;
+      });
+      gridOptions.api.setColumnDefs(colDefs);
+    }
+
+    function finishedEdit(event) {
+      toggleHideClassCols(true);
+
+      var clickedData = event.node.data[event.colDef.field.substring(0, 3)];
+      if (event.oldValue != event.newValue) {
+        var changedData = [];
+        gridOptions.api.forEachNode(node => {
+          if (node.data === undefined) return;
+          var d = node.data;
+          if ([d.src, d.cur, d.dst].includes(clickedData)) {
+            if (d.src == clickedData) d.src_class = event.newValue;
+            if (d.cur == clickedData) d.cur_class = event.newValue;
+            if (d.dst == clickedData) d.dst_class = event.newValue;
+            changedData.push(d)
+          }
+        });
+        gridOptions.api.applyTransaction({ update: changedData });
+        gridOptions.api.clearFocusedCell();
+      }
+    }
+
+    function editMultipleCells() {
+      const cellRanges = gridOptions.api.getCellRanges();
+      if (cellRanges.length == 0) return;
+
+      // function containsEditable(ranges) {
+      //   ranges.forEach(range => {
+      //     let colIds = range.columns.map(col => col.colId);
+
+      //     let startRowIndex = Math.min(
+      //       range.startRow.rowIndex,
+      //       range.endRow.rowIndex
+      //     );
+      //     let endRowIndex = Math.max(
+      //       range.startRow.rowIndex,
+      //       range.endRow.rowIndex
+      //     );
+
+      //     for (let i = startRowIndex; i <= endRowIndex; i++) {
+      //       if (gridOptions.api.rowModel.rowsToDisplay[i].group) continue;
+      //       let data = gridOptions.api.rowModel.rowsToDisplay[i].data;
+      //       colIds.forEach(column => {
+      //         if (["cur", "src", "dst"].includes(column)) return true;
+      //         if (data[column] == -1) return;
+      //         console.log(data[column + "_class"])
+
+      //         var clickedData = data[column];
+      //         gridOptions.api.forEachNode(node => {
+      //           if (node.data === undefined) return;
+      //           var d = node.data;
+      //           if ([d.src, d.cur, d.dst].includes(clickedData)) {
+      //             if (d.src == clickedData) d.src_class = target;
+      //             if (d.cur == clickedData) d.cur_class = target;
+      //             if (d.dst == clickedData) d.dst_class = target;
+      //             changedData.push(d)
+      //           }
+      //         });
+      //       });
+      //     }
+      //   });
+
+      // }
+
+      var changedData = [];
+      let target = prompt("修改選取畫面的類別為", "");
+
+      cellRanges.forEach(range => {
+        let colIds = range.columns.map(col => col.colId);
+
+        let startRowIndex = Math.min(
+          range.startRow.rowIndex,
+          range.endRow.rowIndex
+        );
+        let endRowIndex = Math.max(
+          range.startRow.rowIndex,
+          range.endRow.rowIndex
+        );
+
+        for (let i = startRowIndex; i <= endRowIndex; i++) {
+          if (gridOptions.api.rowModel.rowsToDisplay[i].group) continue;
+          let data = gridOptions.api.rowModel.rowsToDisplay[i].data;
+          colIds.forEach(column => {
+            if (!["cur", "src", "dst"].includes(column)) return;
+            if (data[column] == -1) return;
+            console.log(data[column + "_class"])
+
+            var clickedData = data[column];
+            gridOptions.api.forEachNode(node => {
+              if (node.data === undefined) return;
+              var d = node.data;
+              if ([d.src, d.cur, d.dst].includes(clickedData)) {
+                if (d.src == clickedData) d.src_class = target;
+                if (d.cur == clickedData) d.cur_class = target;
+                if (d.dst == clickedData) d.dst_class = target;
+                changedData.push(d)
+              }
+            });
+          });
+        }
+      });
+
+      gridOptions.api.applyTransaction({ update: changedData });
+      gridOptions.api.clearFocusedCell();
+
+    }
+
+    // ************* Initialization ************* //
+
+    // lookup the container we want the Grid to use
+    const eGridDiv = document.querySelector("#myGrid");
+
+    // create the grid passing in the div to use together with the columns & data we want to use
+    new agGrid.Grid(eGridDiv, gridOptions);
+
+    </script>
+</body>
+</html>
