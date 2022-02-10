@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <title>20220208_lee_raw_exitSOAP_all_merged</title>
+    <script src="https://unpkg.com/gojs/release/go.js"
+            integrity="sha384-jmuxDbgzIVoUX1pMPi24Oly2BcGouO9gwBb2+VdbrIyDqkxGM4zbHzYPf9DUR/da"
+            crossorigin="anonymous"></script>
+    <script type="text/javascript" src="map.js"></script>
+
+    <script id="code">
+        const map_dict = map;
+        var seq_name = "20220208_lee_raw_exitSOAP_all_merged";
+
+        var param;
+        var pos = document.URL.indexOf("?");
+        if (pos != -1) {
+            param = document.URL.substring(pos + 1);
+            console.log("Parameters: " + param);
+        }
+        else param = "";
+
+        function init() {
+            var $ = go.GraphObject.make;
+            var layoutSpacing = new go.Size(192, 108);
+            var myDiagram = $(go.Diagram, 'myDiagramDiv', {
+                layout: $(go.ForceDirectedLayout),
+                // layout: $(go.GridLayout, { spacing: layoutSpacing } ),
+                mouseDrop: function(e) { finishDrop(e, null); },
+                "undoManager.isEnabled": true,
+                "toolManager.hoverDelay": 100
+            });
+
+            // Hide tooltip when dragging
+            var draggingTool = myDiagram.toolManager.draggingTool;
+            draggingTool.doActivate = function() {
+                myDiagram.toolManager.hideToolTip();
+                go.DraggingTool.prototype.doActivate.call(draggingTool);
+            }
+
+            // Expand groups with only one immediate children
+            function autoExpand() {
+                myDiagram.nodes.each(function(n) {
+                    if (n instanceof go.Group) {
+                        if (n.data.key == "Unknown") { n.collapseSubGraph(); return; }
+                        if (n.data.level == 0) { n.expandSubGraph(); return; }
+                        var memberCount = 0;
+                        n.memberParts.each(function(m) {
+                            if (m instanceof go.Group || m instanceof go.Node) memberCount += 1;
+                        })
+                        if (memberCount <= 1) n.expandSubGraph();
+                        else n.collapseSubGraph();
+                    }
+                });
+            }
+
+            // Highlight a Group that the selection may be dropped into
+            function highlightGroup(e, grp, show) {
+                if (!grp) return;
+                e.handled = true;
+                if (show) {
+                    // cannot depend on the grp.diagram.selection in the case of external drag-and-drops;
+                    // instead depend on the DraggingTool.draggedParts or .copiedParts
+                    var tool = grp.diagram.toolManager.draggingTool;
+                    var map = tool.draggedParts || tool.copiedParts;  // this is a Map
+                    // now we can check to see if the Group will accept membership of the dragged Parts
+                    if (grp.canAddMembers(map.toKeySet())) {
+                        grp.isHighlighted = true;
+                        return;
+                    }
+                }
+                grp.isHighlighted = false;
+            }
+
+            // Highlight a node and its connected links by key
+            function highlightNodeByKey(key) {
+                var node = myDiagram.findNodeForKey(key);
+                // for each Link coming out of the Node, set Link.isHighlighted
+                node.findLinksConnected().each(function(l) { l.isHighlighted = true; });
+                // set node as highlighted
+                myDiagram.model.set(node.data, "highlighted", true);
+
+                // set subgroup containing this node as highlighted
+                var subgroup = myDiagram.findNodeForKey(node.data.group)
+                myDiagram.model.set(subgroup.data, "highlighted", true);
+
+                function flash() {
+                    myDiagram.model.set(node.data, "highlighted", !node.data.highlighted);
+                    myDiagram.model.set(subgroup.data, "highlighted", !subgroup.data.highlighted);
+                }
+                function loop() { setTimeout(function() { flash(); loop(); }, 500); }
+                loop();
+            }
+
+            // Upon a drop onto a Group, we try to add the selection as members of the Group.
+            // Upon a drop onto the background, or onto a top-level Node, make selection top-level.
+            // If this is OK, we're done; otherwise we cancel the operation to rollback everything.
+            function finishDrop(e, grp) {
+                var ok = (grp !== null
+                    ? grp.addMembers(grp.diagram.selection, true)
+                    : e.diagram.commandHandler.addTopLevelParts(e.diagram.selection, true));
+                if (!ok) e.diagram.currentTool.doCancel();
+            }
+
+            function mergeNode(e, node) {
+                var newnode = e.diagram.selection.first();
+                while (node.findLinksConnected().first()) {
+                    var link = node.findLinksConnected().first()
+                    var fromnode = link.fromNode;
+                    var tonode = link.toNode;
+                    var linkText = link.data.text;
+                    var linkSize = link.data.size;
+                    node.diagram.model.removeLinkData(link.data);
+                    if (fromnode.key === tonode.key) {
+                        node.diagram.model.addLinkData( { from: newnode.key, to: newnode.key, text: linkText, size: linkSize } );
+                    } else if (fromnode.key === node.key) {
+                        node.diagram.model.addLinkData( { from: newnode.key, to: tonode.key, text: linkText, size: linkSize } );
+                    } else if (tonode.key === node.key) {
+                        node.diagram.model.addLinkData( { from: fromnode.key, to: newnode.key, text: linkText, size: linkSize } );
+                    }
+                }
+                myDiagram.remove(node);
+            }
+
+            function mergeGroup(selectedGroup, newGroup) {
+                newGroup.addMembers(selectedGroup.memberParts, true);
+                myDiagram.remove(selectedGroup)
+            }
+
+            myDiagram.nodeTemplate = $(go.Node, 'Auto',
+                {
+                    mouseDrop: function(e, node) { mergeNode(e, node); },
+                    toolTip:
+                    $("ToolTip",
+                        $(go.Panel, "Vertical",
+                        $(go.Picture, { margin: 3, width: 768, height: 432 },
+                            new go.Binding("source", "key", convertNodeFullImage)),
+                        )
+                    )  // end Adornment
+                },
+                new go.Binding("click", "key", convertNodeURL),
+                $(go.Shape, "Rectangle", { fill: null, strokeWidth: 6 },
+                    new go.Binding("stroke", "", convertNodeStroke),
+                ),
+                $(go.Picture,
+                    { width: 192, height: 108, background: null, imageStretch: go.GraphObject.Uniform },
+                    new go.Binding("source", "key", convertNodeImage)
+                )
+            );
+
+            myDiagram.groupTemplate = $(go.Group, "Auto",
+                {
+                    layout: $(go.ForceDirectedLayout),
+                    // layout: $(go.GridLayout, { spacing: layoutSpacing } ),
+                    ungroupable: true,
+                    // highlight when dragging into the Group
+                    mouseDragEnter: function(e, grp, prev) { highlightGroup(e, grp, true); },
+                    mouseDragLeave: function(e, grp, next) { highlightGroup(e, grp, false); },
+                    computesBoundsAfterDrag: true,
+                    // when the selection is dropped into a Group, add the selected Parts into that Group;
+                    // if it fails, cancel the tool, rolling back any changes
+                    mouseDrop: function(e, grp) {
+                        var selectedGroup = e.diagram.selection.first();
+                        if (selectedGroup instanceof go.Group) {
+                            if (selectedGroup.data.level == grp.data.level) { mergeGroup(selectedGroup, grp); }
+                            else if (selectedGroup.data.level > grp.data.level) { finishDrop(e, grp); }
+                            else { e.diagram.currentTool.doCancel(); }
+                        } else if (selectedGroup instanceof go.Node) {
+                            finishDrop(e, grp);
+                        };
+                    },
+                    handlesDragDropForMembers: true,  // don't need to define handlers on member Nodes and Links
+                    // Groups containing Groups lay out their members horizontally
+                    toolTip:
+                    $("ToolTip",
+                        // new go.Binding("visible", "isSubGraphExpanded", inverter).ofObject(), // TODO: visible only when collapsed
+                        new go.Binding("visible", "level", convertLevelVisible),
+                        $(go.Panel, "Vertical",
+                        $(go.Picture, { margin: 3, width: 768, height: 432 },
+                            new go.Binding("source", "preview", convertNodeFullImage)),
+                        )
+                    )  // end Adornment
+                },
+                new go.Binding("background", "isHighlighted", function(h) {
+                    return h ? "rgba(255,0,0,0.2)" : "transparent";
+                }).ofObject(),
+                $(go.Shape, "Rectangle",
+                    { fill: null, strokeWidth: 2 },
+                    new go.Binding("stroke", "", convertGroupColor)
+                ),
+                $(go.Panel, "Vertical",  // title above Placeholder
+                    $(go.Panel, "Horizontal",  // button next to TextBlock
+                        { stretch: go.GraphObject.Horizontal },
+                        new go.Binding("background", "", convertGroupColor),
+                        $("SubGraphExpanderButton",
+                            { alignment: go.Spot.Right, margin: 5 } ),
+                        $(go.TextBlock,
+                            {
+                                alignment: go.Spot.Left,
+                                editable: true,
+                                margin: 5,
+                                font: "bold 16px sans-serif",
+                                opacity: 0.75,  // allow some color to show through
+                                stroke: "#404040"
+                            },
+                            new go.Binding("text", "key").makeTwoWay()
+                        )
+                    ),  // end Horizontal Panel
+                    $(go.Placeholder,
+                        { padding: 5, alignment: go.Spot.TopLeft } )
+                )  // end Vertical Panel
+            );
+
+            myDiagram.linkTemplate = $(go.Link,
+                {
+                    curve: go.Link.Bezier,
+                    toolTip:
+                    $("ToolTip",
+                        // tooltip visible only when link is click event
+                        new go.Binding("visible", "", convertLinkTooltipVisible),
+                        $(go.Panel, "Vertical",
+                        $(go.Picture, { margin: 3, width: 768, height: 432 },
+                            new go.Binding("source", "", convertLinkFullImage)),
+                        )
+                    )  // end Adornment
+                },
+                new go.Binding("click", "", convertLinkURL),
+                $(go.Shape,
+                    // the Shape.stroke color depends on whether Link.isHighlighted is true
+                    new go.Binding("stroke", "isHighlighted", function(h) { return h ? "red" : "black"; }).ofObject(),
+                    // the Shape.strokeWidth depends on whether Link.isHighlighted is true
+                    new go.Binding("strokeWidth", "isHighlighted", function(h) { return h ? 3 : 1; }).ofObject()
+                ),
+                $(go.Shape,
+                    { toArrow: "Standard", strokeWidth: 0 },
+                    // the Shape.fill color depends on whether Link.isHighlighted is true
+                    new go.Binding("fill", "isHighlighted", function(h) { return h ? "red" : "black"; }).ofObject(),
+                    new go.Binding("scale", "isHighlighted", function(h) { return h ? 2 : 1; }).ofObject(),
+                ),
+                $(go.Panel, "Auto",
+                    $(go.Shape, "Rectangle",
+                        { fill: "white", stroke: "lightgray" },
+                        new go.Binding("visible", "text", function(text) { return (text != null); }),
+                    ),
+                    $(go.TextBlock, { margin: 3, opacity: 1., font: "bold 14pt Courier New" },
+                        new go.Binding("text", "text")),
+                    $(go.Picture, { segmentOffset: new go.Point(0, 0) },
+                        { width: 192, height: 35, background: null, imageStretch: go.GraphObject.Uniform },
+                        new go.Binding("source", "", convertLinkImage),
+                    ),
+                )
+            );
+
+            myDiagram.model = new go.GraphLinksModel([
+                { key: "000085", group: "-03", tag: null },
+                { key: "-03", preview: "000085", isGroup: true, level: 1, group: "" },
+                { key: "", preview: "000085", isGroup: true, level: 0 },
+                { key: "000086", group: "-04", tag: null },
+                { key: "-04", preview: "000086", isGroup: true, level: 1, group: "" },
+                { key: "000414", group: "-06", tag: null },
+                { key: "-06", preview: "000414", isGroup: true, level: 1, group: "" },
+                { key: "000026", group: "CC_Patients-03", tag: null },
+                { key: "CC_Patients-03", preview: "000026", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "CC_Patients", preview: "000026", isGroup: true, level: 0 },
+                { key: "000041", group: "CC_Patients-05", tag: null },
+                { key: "CC_Patients-05", preview: "000041", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000107", group: "CC_Patients-07", tag: null },
+                { key: "CC_Patients-07", preview: "000107", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000159", group: "CC_Patients-11", tag: null },
+                { key: "CC_Patients-11", preview: "000159", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000184", group: "CC_Patients-14", tag: null },
+                { key: "CC_Patients-14", preview: "000184", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000277", group: "CC_Patients-17", tag: null },
+                { key: "CC_Patients-17", preview: "000277", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000284", group: "CC_Patients-18", tag: null },
+                { key: "CC_Patients-18", preview: "000284", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000300", group: "CC_Patients-21", tag: null },
+                { key: "CC_Patients-21", preview: "000300", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000358", group: "CC_Patients-30", tag: null },
+                { key: "CC_Patients-30", preview: "000358", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000416", group: "CC_Patients-36", tag: null },
+                { key: "CC_Patients-36", preview: "000416", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000451", group: "CC_Patients-38", tag: null },
+                { key: "CC_Patients-38", preview: "000451", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000555", group: "CC_Patients-48", tag: null },
+                { key: "CC_Patients-48", preview: "000555", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000577", group: "CC_Patients-51", tag: null },
+                { key: "CC_Patients-51", preview: "000577", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000719", group: "CC_Patients-57", tag: null },
+                { key: "CC_Patients-57", preview: "000719", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000772", group: "CC_Patients-59", tag: null },
+                { key: "CC_Patients-59", preview: "000772", isGroup: true, level: 1, group: "CC_Patients" },
+                { key: "000023", group: "CC_Soap-12", tag: null },
+                { key: "CC_Soap-12", preview: "000023", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "CC_Soap", preview: "000023", isGroup: true, level: 0 },
+                { key: "000031", group: "CC_Soap-16", tag: null },
+                { key: "CC_Soap-16", preview: "000031", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000032", group: "CC_Soap-17", tag: null },
+                { key: "CC_Soap-17", preview: "000032", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000033", group: "CC_Soap-18", tag: null },
+                { key: "CC_Soap-18", preview: "000033", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000034", group: "CC_Soap-19", tag: null },
+                { key: "CC_Soap-19", preview: "000034", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000035", group: "CC_Soap-20", tag: null },
+                { key: "CC_Soap-20", preview: "000035", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000074", group: "CC_Soap-42", tag: null },
+                { key: "CC_Soap-42", preview: "000074", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000077", group: "CC_Soap-43", tag: null },
+                { key: "CC_Soap-43", preview: "000077", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000080", group: "CC_Soap-44", tag: null },
+                { key: "CC_Soap-44", preview: "000080", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000081", group: "CC_Soap-45", tag: null },
+                { key: "CC_Soap-45", preview: "000081", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000082", group: "CC_Soap-46", tag: null },
+                { key: "CC_Soap-46", preview: "000082", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000083", group: "CC_Soap-47", tag: null },
+                { key: "CC_Soap-47", preview: "000083", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000084", group: "CC_Soap-48", tag: null },
+                { key: "CC_Soap-48", preview: "000084", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000088", group: "CC_Soap-49", tag: null },
+                { key: "CC_Soap-49", preview: "000088", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000089", group: "CC_Soap-50", tag: null },
+                { key: "CC_Soap-50", preview: "000089", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000090", group: "CC_Soap-51", tag: null },
+                { key: "CC_Soap-51", preview: "000090", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000091", group: "CC_Soap-52", tag: null },
+                { key: "CC_Soap-52", preview: "000091", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000092", group: "CC_Soap-53", tag: null },
+                { key: "CC_Soap-53", preview: "000092", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000093", group: "CC_Soap-54", tag: null },
+                { key: "CC_Soap-54", preview: "000093", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000094", group: "CC_Soap-55", tag: null },
+                { key: "CC_Soap-55", preview: "000094", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000095", group: "CC_Soap-56", tag: null },
+                { key: "CC_Soap-56", preview: "000095", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000099", group: "CC_Soap-57", tag: null },
+                { key: "CC_Soap-57", preview: "000099", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000100", group: "CC_Soap-58", tag: null },
+                { key: "CC_Soap-58", preview: "000100", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000101", group: "CC_Soap-59", tag: null },
+                { key: "CC_Soap-59", preview: "000101", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000102", group: "CC_Soap-60", tag: null },
+                { key: "CC_Soap-60", preview: "000102", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000103", group: "CC_Soap-61", tag: null },
+                { key: "CC_Soap-61", preview: "000103", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000104", group: "CC_Soap-62", tag: null },
+                { key: "CC_Soap-62", preview: "000104", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000156", group: "CC_Soap-80", tag: null },
+                { key: "CC_Soap-80", preview: "000156", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000182", group: "CC_Soap-101", tag: null },
+                { key: "CC_Soap-101", preview: "000182", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000274", group: "CC_Soap-149", tag: null },
+                { key: "CC_Soap-149", preview: "000274", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000281", group: "CC_Soap-153", tag: null },
+                { key: "CC_Soap-153", preview: "000281", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000294", group: "CC_Soap-161", tag: null },
+                { key: "CC_Soap-161", preview: "000294", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000355", group: "CC_Soap-180", tag: null },
+                { key: "CC_Soap-180", preview: "000355", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000408", group: "CC_Soap-200", tag: null },
+                { key: "CC_Soap-200", preview: "000408", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000443", group: "CC_Soap-214", tag: null },
+                { key: "CC_Soap-214", preview: "000443", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000552", group: "CC_Soap-253", tag: null },
+                { key: "CC_Soap-253", preview: "000552", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000574", group: "CC_Soap-270", tag: null },
+                { key: "CC_Soap-270", preview: "000574", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000711", group: "CC_Soap-365", tag: null },
+                { key: "CC_Soap-365", preview: "000711", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000714", group: "CC_Soap-366", tag: null },
+                { key: "CC_Soap-366", preview: "000714", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000715", group: "CC_Soap-367", tag: null },
+                { key: "CC_Soap-367", preview: "000715", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000716", group: "CC_Soap-368", tag: null },
+                { key: "CC_Soap-368", preview: "000716", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000769", group: "CC_Soap-400", tag: null },
+                { key: "CC_Soap-400", preview: "000769", isGroup: true, level: 1, group: "CC_Soap" },
+                { key: "000024", group: "慢性病連續處方箋回領查詢-00", tag: null },
+                { key: "慢性病連續處方箋回領查詢-00", preview: "000024", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "慢性病連續處方箋回領查詢", preview: "000024", isGroup: true, level: 0 },
+                { key: "000036", group: "慢性病連續處方箋回領查詢-01", tag: null },
+                { key: "慢性病連續處方箋回領查詢-01", preview: "000036", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000075", group: "慢性病連續處方箋回領查詢-02", tag: null },
+                { key: "慢性病連續處方箋回領查詢-02", preview: "000075", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000078", group: "慢性病連續處方箋回領查詢-03", tag: null },
+                { key: "慢性病連續處方箋回領查詢-03", preview: "000078", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000105", group: "慢性病連續處方箋回領查詢-04", tag: null },
+                { key: "慢性病連續處方箋回領查詢-04", preview: "000105", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000157", group: "慢性病連續處方箋回領查詢-05", tag: null },
+                { key: "慢性病連續處方箋回領查詢-05", preview: "000157", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000183", group: "慢性病連續處方箋回領查詢-06", tag: null },
+                { key: "慢性病連續處方箋回領查詢-06", preview: "000183", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000275", group: "慢性病連續處方箋回領查詢-07", tag: null },
+                { key: "慢性病連續處方箋回領查詢-07", preview: "000275", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000282", group: "慢性病連續處方箋回領查詢-08", tag: null },
+                { key: "慢性病連續處方箋回領查詢-08", preview: "000282", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000295", group: "慢性病連續處方箋回領查詢-09", tag: null },
+                { key: "慢性病連續處方箋回領查詢-09", preview: "000295", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000356", group: "慢性病連續處方箋回領查詢-10", tag: null },
+                { key: "慢性病連續處方箋回領查詢-10", preview: "000356", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000409", group: "慢性病連續處方箋回領查詢-11", tag: null },
+                { key: "慢性病連續處方箋回領查詢-11", preview: "000409", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000444", group: "慢性病連續處方箋回領查詢-12", tag: null },
+                { key: "慢性病連續處方箋回領查詢-12", preview: "000444", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000553", group: "慢性病連續處方箋回領查詢-13", tag: null },
+                { key: "慢性病連續處方箋回領查詢-13", preview: "000553", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000575", group: "慢性病連續處方箋回領查詢-14", tag: null },
+                { key: "慢性病連續處方箋回領查詢-14", preview: "000575", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000712", group: "慢性病連續處方箋回領查詢-15", tag: null },
+                { key: "慢性病連續處方箋回領查詢-15", preview: "000712", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000717", group: "慢性病連續處方箋回領查詢-16", tag: null },
+                { key: "慢性病連續處方箋回領查詢-16", preview: "000717", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000770", group: "慢性病連續處方箋回領查詢-17", tag: null },
+                { key: "慢性病連續處方箋回領查詢-17", preview: "000770", isGroup: true, level: 1, group: "慢性病連續處方箋回領查詢" },
+                { key: "000025", group: "門診醫令系統   健保卡寫入作業-00", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-00", preview: "000025", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "門診醫令系統   健保卡寫入作業", preview: "000025", isGroup: true, level: 0 },
+                { key: "000040", group: "門診醫令系統   健保卡寫入作業-01", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-01", preview: "000040", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000106", group: "門診醫令系統   健保卡寫入作業-02", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-02", preview: "000106", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000158", group: "門診醫令系統   健保卡寫入作業-03", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-03", preview: "000158", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000276", group: "門診醫令系統   健保卡寫入作業-04", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-04", preview: "000276", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000283", group: "門診醫令系統   健保卡寫入作業-05", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-05", preview: "000283", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000357", group: "門診醫令系統   健保卡寫入作業-06", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-06", preview: "000357", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000415", group: "門診醫令系統   健保卡寫入作業-07", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-07", preview: "000415", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000554", group: "門診醫令系統   健保卡寫入作業-08", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-08", preview: "000554", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000576", group: "門診醫令系統   健保卡寫入作業-09", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-09", preview: "000576", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000718", group: "門診醫令系統   健保卡寫入作業-10", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-10", preview: "000718", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000771", group: "門診醫令系統   健保卡寫入作業-11", tag: null },
+                { key: "門診醫令系統   健保卡寫入作業-11", preview: "000771", isGroup: true, level: 1, group: "門診醫令系統   健保卡寫入作業" },
+                { key: "000037", group: "癌症病情告知紀錄-00", tag: null },
+                { key: "癌症病情告知紀錄-00", preview: "000037", isGroup: true, level: 1, group: "癌症病情告知紀錄" },
+                { key: "癌症病情告知紀錄", preview: "000037", isGroup: true, level: 0 },
+                { key: "000038", group: "癌症病情告知紀錄-01", tag: null },
+                { key: "癌症病情告知紀錄-01", preview: "000038", isGroup: true, level: 1, group: "癌症病情告知紀錄" },
+                { key: "000039", group: "癌症病情告知紀錄-02", tag: null },
+                { key: "癌症病情告知紀錄-02", preview: "000039", isGroup: true, level: 1, group: "癌症病情告知紀錄" },
+                { key: "000446", group: "錯誤-01", tag: null },
+                { key: "錯誤-01", preview: "000446", isGroup: true, level: 1, group: "錯誤" },
+                { key: "錯誤", preview: "000446", isGroup: true, level: 0 },
+                { key: "000447", group: "錯誤-02", tag: null },
+                { key: "錯誤-02", preview: "000447", isGroup: true, level: 1, group: "錯誤" },
+                { key: "000448", group: "錯誤-03", tag: null },
+                { key: "錯誤-03", preview: "000448", isGroup: true, level: 1, group: "錯誤" },
+                { key: "000096", group: "處方備註-02", tag: null },
+                { key: "處方備註-02", preview: "000096", isGroup: true, level: 1, group: "處方備註" },
+                { key: "處方備註", preview: "000096", isGroup: true, level: 0 },
+                { key: "000097", group: "處方備註-03", tag: null },
+                { key: "處方備註-03", preview: "000097", isGroup: true, level: 1, group: "處方備註" },
+                { key: "000098", group: "處方備註-04", tag: null },
+                { key: "處方備註-04", preview: "000098", isGroup: true, level: 1, group: "處方備註" },
+                { key: "000076", group: "提示訊息-00", tag: null },
+                { key: "提示訊息-00", preview: "000076", isGroup: true, level: 1, group: "提示訊息" },
+                { key: "提示訊息", preview: "000076", isGroup: true, level: 0 },
+                { key: "000079", group: "提示訊息-01", tag: null },
+                { key: "提示訊息-01", preview: "000079", isGroup: true, level: 1, group: "提示訊息" },
+                { key: "000087", group: "提示訊息-02", tag: null },
+                { key: "提示訊息-02", preview: "000087", isGroup: true, level: 1, group: "提示訊息" },
+                { key: "000713", group: "提示訊息-04", tag: null },
+                { key: "提示訊息-04", preview: "000713", isGroup: true, level: 1, group: "提示訊息" },
+                { key: "000296", group: "Clopidogrel 健保使用條件說明-00", tag: null },
+                { key: "Clopidogrel 健保使用條件說明-00", preview: "000296", isGroup: true, level: 1, group: "Clopidogrel 健保使用條件說明" },
+                { key: "Clopidogrel 健保使用條件說明", preview: "000296", isGroup: true, level: 0 },
+                { key: "000297", group: "Clopidogrel 健保使用條件說明-01", tag: null },
+                { key: "Clopidogrel 健保使用條件說明-01", preview: "000297", isGroup: true, level: 1, group: "Clopidogrel 健保使用條件說明" },
+                { key: "000298", group: "Clopidogrel 健保使用條件說明-02", tag: null },
+                { key: "Clopidogrel 健保使用條件說明-02", preview: "000298", isGroup: true, level: 1, group: "Clopidogrel 健保使用條件說明" },
+                { key: "000299", group: "Clopidogrel 健保使用條件說明-03", tag: null },
+                { key: "Clopidogrel 健保使用條件說明-03", preview: "000299", isGroup: true, level: 1, group: "Clopidogrel 健保使用條件說明" },
+                { key: "000410", group: "Clopidogrel 健保使用條件說明-04", tag: null },
+                { key: "Clopidogrel 健保使用條件說明-04", preview: "000410", isGroup: true, level: 1, group: "Clopidogrel 健保使用條件說明" },
+                { key: "000411", group: "Clopidogrel 健保使用條件說明-05", tag: null },
+                { key: "Clopidogrel 健保使用條件說明-05", preview: "000411", isGroup: true, level: 1, group: "Clopidogrel 健保使用條件說明" },
+                { key: "000412", group: "Clopidogrel 健保使用條件說明-06", tag: null },
+                { key: "Clopidogrel 健保使用條件說明-06", preview: "000412", isGroup: true, level: 1, group: "Clopidogrel 健保使用條件說明" },
+                { key: "000413", group: "Clopidogrel 健保使用條件說明-07", tag: null },
+                { key: "Clopidogrel 健保使用條件說明-07", preview: "000413", isGroup: true, level: 1, group: "Clopidogrel 健保使用條件說明" },
+                { key: "000445", group: "ICD9對應ICD10-01", tag: null },
+                { key: "ICD9對應ICD10-01", preview: "000445", isGroup: true, level: 1, group: "ICD9對應ICD10" },
+                { key: "ICD9對應ICD10", preview: "000445", isGroup: true, level: 0 },
+                { key: "000449", group: "藥品健保重複用藥限制說明-00", tag: null },
+                { key: "藥品健保重複用藥限制說明-00", preview: "000449", isGroup: true, level: 1, group: "藥品健保重複用藥限制說明" },
+                { key: "藥品健保重複用藥限制說明", preview: "000449", isGroup: true, level: 0 },
+                { key: "000450", group: "藥品健保重複用藥限制說明-01", tag: null },
+                { key: "藥品健保重複用藥限制說明-01", preview: "000450", isGroup: true, level: 1, group: "藥品健保重複用藥限制說明" },
+        ], [
+                { from: "000023", to: "000024", text: null },
+                { from: "000024", to: "000025", text: null },
+                { from: "000025", to: "000026", text: null },
+                { from: "000031", to: "000032", text: null },
+                { from: "000032", to: "000033", text: null },
+                { from: "000033", to: "000034", text: null },
+                { from: "000034", to: "000035", text: "⌫,␣nod␣y⌫⌫⌫␣dyspnea␣⌫." },
+                { from: "000035", to: "000036", text: null },
+                { from: "000036", to: "000037", text: null },
+                { from: "000037", to: "000038", text: null },
+                { from: "000038", to: "000039", text: null },
+                { from: "000039", to: "000040", text: null },
+                { from: "000040", to: "000041", text: null },
+                { from: "000074", to: "000075", text: null },
+                { from: "000075", to: "000076", text: null },
+                { from: "000076", to: "000077", text: null },
+                { from: "000077", to: "000078", text: null },
+                { from: "000078", to: "000079", text: null },
+                { from: "000079", to: "000080", text: null },
+                { from: "000080", to: "000081", text: null },
+                { from: "000081", to: "000082", text: null },
+                { from: "000082", to: "000083", text: "⌫" },
+                { from: "000083", to: "000084", text: null },
+                { from: "000084", to: "000085", text: "xna⌫⌫anax⏎" },
+                { from: "000085", to: "000086", text: null },
+                { from: "000086", to: "000087", text: null },
+                { from: "000087", to: "000088", text: null },
+                { from: "000088", to: "000089", text: null },
+                { from: "000089", to: "000090", text: "⌦→5↹" },
+                { from: "000090", to: "000091", text: null },
+                { from: "000091", to: "000092", text: null },
+                { from: "000092", to: "000093", text: null },
+                { from: "000093", to: "000094", text: null },
+                { from: "000094", to: "000095", text: null },
+                { from: "000095", to: "000096", text: null },
+                { from: "000096", to: "000097", text: null },
+                { from: "000097", to: "000098", text: "if␣insomnia" },
+                { from: "000098", to: "000099", text: null },
+                { from: "000099", to: "000100", text: null },
+                { from: "000100", to: "000101", text: "⌦28↹⌦14↹" },
+                { from: "000101", to: "000102", text: null },
+                { from: "000102", to: "000103", text: null },
+                { from: "000103", to: "000104", text: null },
+                { from: "000104", to: "000105", text: null },
+                { from: "000105", to: "000106", text: null },
+                { from: "000106", to: "000107", text: null },
+                { from: "000156", to: "000157", text: null },
+                { from: "000157", to: "000158", text: null },
+                { from: "000158", to: "000159", text: null },
+                { from: "000182", to: "000183", text: null },
+                { from: "000183", to: "000184", text: null },
+                { from: "000274", to: "000275", text: null },
+                { from: "000275", to: "000276", text: null },
+                { from: "000276", to: "000277", text: null },
+                { from: "000281", to: "000282", text: null },
+                { from: "000282", to: "000283", text: null },
+                { from: "000283", to: "000284", text: null },
+                { from: "000294", to: "000295", text: null },
+                { from: "000295", to: "000296", text: null },
+                { from: "000296", to: "000297", text: null },
+                { from: "000297", to: "000298", text: null },
+                { from: "000298", to: "000299", text: "20220104" },
+                { from: "000299", to: "000300", text: null },
+                { from: "000355", to: "000356", text: null },
+                { from: "000356", to: "000357", text: null },
+                { from: "000357", to: "000358", text: null },
+                { from: "000408", to: "000409", text: null },
+                { from: "000409", to: "000410", text: null },
+                { from: "000410", to: "000411", text: null },
+                { from: "000411", to: "000412", text: null },
+                { from: "000412", to: "000413", text: "20220106" },
+                { from: "000413", to: "000414", text: null },
+                { from: "000414", to: "000415", text: null },
+                { from: "000415", to: "000416", text: null },
+                { from: "000443", to: "000444", text: null },
+                { from: "000444", to: "000445", text: null },
+                { from: "000445", to: "000446", text: null },
+                { from: "000446", to: "000447", text: null },
+                { from: "000447", to: "000448", text: null },
+                { from: "000448", to: "000449", text: null },
+                { from: "000449", to: "000450", text: null },
+                { from: "000450", to: "000451", text: null },
+                { from: "000552", to: "000553", text: null },
+                { from: "000553", to: "000554", text: null },
+                { from: "000554", to: "000555", text: null },
+                { from: "000574", to: "000575", text: null },
+                { from: "000575", to: "000576", text: null },
+                { from: "000576", to: "000577", text: null },
+                { from: "000711", to: "000712", text: null },
+                { from: "000712", to: "000713", text: null },
+                { from: "000713", to: "000714", text: null },
+                { from: "000714", to: "000715", text: null },
+                { from: "000715", to: "000716", text: null },
+                { from: "000716", to: "000717", text: null },
+                { from: "000717", to: "000718", text: null },
+                { from: "000718", to: "000719", text: null },
+                { from: "000769", to: "000770", text: null },
+                { from: "000770", to: "000771", text: null },
+                { from: "000771", to: "000772", text: null },
+            ]);
+
+            autoExpand();
+            if (param != "") highlightNodeByKey(param);
+        }
+
+        function convertLevelVisible(level) {
+            if (level == 1) { return true }
+            else if (level == 0) { return false }
+            else { return false }
+        }
+
+        function convertGroupColor(data) {
+            if (data.highlighted) { return "red" }
+            if (data.level == 0) { return "#33D3E5" }
+            else if (data.level == 1) { return "#FFDD33" }
+            else if (data.level == 2) { return "#ACE600" }
+            else { return "#000000" }
+        }
+
+        function convertNodeImage(key) {
+            if (key == null) return "";
+            else return "imgs/nodes/f" + key + "_node.png";
+        }
+
+        function convertNodeFullImage(key) {
+            if (key == null) return "";
+            else return "imgs/nodes/f" + key + "_full.png";
+        }
+
+        function convertNodeURL(key) {
+            if (key == null) return null;
+            if (map_dict[parseInt(key)] && seq_name.includes("_all")) return function() {
+                window.open(map_dict[parseInt(key)][0] + ".html");
+            }
+            else return function() {
+                window.open("imgs/nodes/f" + key + "_full.png");
+            }
+        }
+
+        function convertLinkTooltipVisible(data) {
+            var from = data.from
+            var to = data.to
+            var text = data.text
+            if (from == "Unknown" || to == "Unknown" || text != null) return false;
+            else return true;
+        }
+
+        function convertLinkImage(data) {
+            var from = data.from
+            var to = data.to
+            var text = data.text
+            if (from == "Unknown" || to == "Unknown" || text != null) return null;
+            else return "imgs/links/f" + from + "-f" + to + "_crop.png";
+        }
+
+        function convertLinkFullImage(data) {
+            var from = data.from
+            var to = data.to
+            var text = data.text
+            if (from == "Unknown" || to == "Unknown" || text != null) return null;
+            else return "imgs/links/f" + from + "-f" + to + "_full.png";
+        }
+
+        function convertLinkURL(data) {
+            var from = data.from
+            var to = data.to
+            var text = data.text
+            if (from == "Unknown" || to == "Unknown" || text != null) return null;
+            else return function() {
+                window.open("imgs/links/f" + from + "-f" + to + "_full.png");
+            }
+        }
+
+        function convertNodeStroke(data) {
+            if (data.highlighted) return "red";
+            if (data.tag == "start" || data.tag == "end") return "green";
+            else return "white";
+        }
+
+        function inverter(x) {
+            return !x;
+        }
+
+        // Call init on page load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</head>
+
+<body>
+    <div id="sample">
+        <div style="width: 100%; display: flex; justify-content: space-between">
+            <div id="myDiagramDiv" style="flex-grow: 1; height: 1000px; border: solid 1px black"></div>
+        </div>
+    </div>
+</body>
+</html>
